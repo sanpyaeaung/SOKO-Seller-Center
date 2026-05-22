@@ -1,0 +1,22 @@
+{
+  "short_name": "SOKO Seller",
+  "name": "SOKO Myanmar Seller Center",
+  "description": "Myanmar local products seller center with customer storefront simulator",
+  "icons": [
+    {
+      "src": "https://img.icons8.com/?size=192&id=T967y1aorpxV&format=png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://img.icons8.com/?size=512&id=T967y1aorpxV&format=png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0d9488",
+  "theme_color": "#0d9488",
+  "display": "standalone",
+  "orientation": "portrait"
+}

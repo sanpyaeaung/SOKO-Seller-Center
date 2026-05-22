@@ -1,0 +1,66 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "A local Myanmar product managed by the seller.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique product ID" },
+        "name": { "type": "string", "description": "Name of the product" },
+        "price": { "type": "number", "description": "Retail price in Kyat (Ks)" },
+        "stock_qty": { "type": "number", "description": "Current inventory count" },
+        "image": { "type": "string", "description": "Emoji symbol or image URL representing the product" },
+        "category": { "type": "string", "description": "Category folder eg. စားသောက်ကုန်" },
+        "owner_uid": { "type": "string", "description": "The UID of the seller who owns this product" }
+      },
+      "required": ["id", "name", "price", "stock_qty", "image", "category", "owner_uid"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "An order placed by a customer in the storefront.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique order ID" },
+        "customer_name": { "type": "string", "description": "Customer's printable name" },
+        "customer_phone": { "type": "string", "description": "Customer's contact phone number" },
+        "address": { "type": "string", "description": "Myanmar physical shipping address" },
+        "items": { "type": "array", "description": "Purchased merchandise items list" },
+        "total_amount": { "type": "number", "description": "Total checkout price in Ks" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "shipped", "completed", "cancelled"], "description": "Order life-cycle stage" },
+        "payment_method": { "type": "string", "description": "KBZPay, WaveMoney, or Cash on Delivery" },
+        "created_at": { "type": "string", "format": "date-time", "description": "ISO timestamp of creation" },
+        "owner_uid": { "type": "string", "description": "The UID of the seller receiving this order" }
+      },
+      "required": ["id", "customer_name", "customer_phone", "address", "items", "total_amount", "status", "payment_method", "created_at", "owner_uid"]
+    },
+    "ShopSettings": {
+      "title": "ShopSettings",
+      "description": "Sellers shop configurations and payment receivers details.",
+      "type": "object",
+      "properties": {
+        "owner_uid": { "type": "string", "description": "Owner seller authentication UID" },
+        "name": { "type": "string", "description": "Custom store brand name" },
+        "phone": { "type": "string", "description": "Store hotline phone number" },
+        "address": { "type": "string", "description": "Store physical hub location" },
+        "kpay_number": { "type": "string", "description": "KBZPay receiver number" },
+        "kpay_name": { "type": "string", "description": "KBZPay account owner name" },
+        "slug": { "type": "string", "description": "Store directory short name" }
+      },
+      "required": ["owner_uid", "name", "phone", "address", "kpay_number", "kpay_name", "slug"]
+    }
+  },
+  "firestore": {
+    "products/{productId}": {
+      "schema": "Product",
+      "description": "Stores seller customized Myanmar local products catalog."
+    },
+    "orders/{orderId}": {
+      "schema": "Order",
+      "description": "Stores customer-placed order records for processing."
+    },
+    "shop_settings/{owner_uid}": {
+      "schema": "ShopSettings",
+      "description": "Stores individual seller business details and payment accounts."
+    }
+  }
+}

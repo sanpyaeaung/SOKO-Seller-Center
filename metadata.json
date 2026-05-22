@@ -1,0 +1,6 @@
+{
+  "name": "SOKO Seller Center",
+  "description": "Myanmar local products seller center with customer storefront simulator, real-time Firebase syncing, Google Authentication, PWA installation support, and local product support branding.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
