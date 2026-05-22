@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f97316" />
+      <stop offset="100%" stop-color="#ea580c" />
+    </linearGradient>
+  </defs>
+  <!-- Rounded corner icon base -->
+  <rect width="512" height="512" rx="128" fill="url(#orangeGrad)"/>
+  
+  <!-- Outer glowing ring -->
+  <rect x="24" y="24" width="464" height="464" rx="104" fill="none" stroke="#ffedd5" stroke-width="8" stroke-opacity="0.3"/>
+
+  <!-- Sleek minimalist Shopping Bag / Storefront graphic -->
+  <path d="M192 192c0-35.3 28.7-64 64-64s64 28.7 64 64" fill="none" stroke="#ffffff" stroke-width="24" stroke-linecap="round"/>
+  <path d="M144 192h224v208c0 26.5-21.5 48-48 48H192c-26.5 0-48-21.5-48-48V192z" fill="#ffffff"/>
+  
+  <!-- SOKO "S" built-in cutout -->
+  <path d="M244 265c0-10 8-15 17-15 10 0 17 6 17 15 0 8-5 12-12 17l-15 11c-12 9-19 22-19 37h60v-16h-34c0-8 5-13 11-17l16-12c12-9 17-21 17-35 0-20-16-33-35-33-21 0-36 14-36 32h16z" fill="#ea580c" style="display:none;"/>
+  
+  <!-- Handcrafted elegant S in Myanmar color theme -->
+  <text x="256" y="356" font-family="'Inter', system-ui, -apple-system, sans-serif" font-size="110" font-weight="900" fill="#f97316" text-anchor="middle" letter-spacing="-0.05em">S</text>
+</svg>

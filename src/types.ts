@@ -24,8 +24,17 @@ export interface Order {
   total_amount: number;
   status: 'pending' | 'confirmed' | 'shipped' | 'completed' | 'cancelled';
   payment_method: string;
+  payment_account_id?: string; // Selected payment account ID
+  payment_slip_image?: string; // Base64 representation of proof of payment receipt
   created_at: string;
   owner_uid: string;
+}
+
+export interface PaymentAccount {
+  id: string;
+  provider: string; // KBZPay, WaveMoney, CB Bank, AYA Bank, KBZ Bank, Yoma Bank, etc.
+  account_number: string;
+  account_name: string;
 }
 
 export interface ShopSettings {
@@ -36,4 +45,5 @@ export interface ShopSettings {
   kpay_number: string;
   kpay_name: string;
   slug: string;
+  payment_accounts?: PaymentAccount[]; // Unlimited banking/mobile payment accounts
 }

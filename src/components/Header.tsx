@@ -108,71 +108,71 @@ export default function Header({ user, shopName, shopSlug, activeTab, onNavigate
               </div>
 
               {/* Navigation Options list */}
-              <nav className="space-y-1">
+              <nav className="space-y-1.5">
                 <button
                   onClick={() => { onNavigate('dashboard'); setIsOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-[11px] font-bold rounded-lg transition-all ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 text-[13px] font-extrabold rounded-xl transition-all ${
                     activeTab === 'dashboard' 
-                      ? 'bg-orange-500 text-white shadow-xs' 
-                      : 'text-slate-600 hover:bg-orange-50 hover:text-orange-600'
+                      ? 'bg-orange-500 text-white shadow-md' 
+                      : 'text-slate-700 hover:bg-orange-50 hover:text-orange-655'
                   }`}
                 >
-                  <span className="text-sm">📊</span>
+                  <span className="text-base">📊</span>
                   <span className="truncate">Dashboard</span>
                 </button>
                 <button
                   onClick={() => { onNavigate('orders'); setIsOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-[11px] font-bold rounded-lg transition-all ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 text-[13px] font-extrabold rounded-xl transition-all ${
                     activeTab === 'orders' 
-                      ? 'bg-orange-500 text-white shadow-xs' 
-                      : 'text-slate-600 hover:bg-orange-50 hover:text-orange-600'
+                      ? 'bg-orange-500 text-white shadow-md' 
+                      : 'text-slate-700 hover:bg-orange-50 hover:text-orange-655'
                   }`}
                 >
-                  <span className="text-sm">📦</span>
+                  <span className="text-base">📦</span>
                   <span className="truncate">အော်ဒါများ</span>
                 </button>
                 <button
                   onClick={() => { onNavigate('inventory'); setIsOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-[11px] font-bold rounded-lg transition-all ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 text-[13px] font-extrabold rounded-xl transition-all ${
                     activeTab === 'inventory' 
-                      ? 'bg-orange-500 text-white shadow-xs' 
-                      : 'text-slate-600 hover:bg-orange-50 hover:text-orange-600'
+                      ? 'bg-orange-500 text-white shadow-md' 
+                      : 'text-slate-700 hover:bg-orange-50 hover:text-orange-655'
                   }`}
                 >
-                  <span className="text-sm">🏷️</span>
+                  <span className="text-base">🏷️</span>
                   <span className="truncate">ကုန်ပစ္စည်း</span>
                 </button>
                 <button
                   onClick={() => { onNavigate('storefront-sim'); setIsOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-[11px] font-bold rounded-lg transition-all ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 text-[13px] font-extrabold rounded-xl transition-all ${
                     activeTab === 'storefront-sim' 
-                      ? 'bg-orange-500 text-white shadow-xs' 
-                      : 'text-slate-600 hover:bg-orange-50 hover:text-orange-600'
+                      ? 'bg-orange-500 text-white shadow-md' 
+                      : 'text-slate-700 hover:bg-orange-50 hover:text-orange-655'
                   }`}
                 >
-                  <span className="text-sm">📱</span>
+                  <span className="text-base">📱</span>
                   <span className="truncate">ဝယ်သူဆိုင်စမ်းသပ်မှု</span>
                 </button>
                 <button
                   onClick={() => { onNavigate('reports'); setIsOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-[11px] font-bold rounded-lg transition-all ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 text-[13px] font-extrabold rounded-xl transition-all ${
                     activeTab === 'reports' 
-                      ? 'bg-orange-500 text-white shadow-xs' 
-                      : 'text-slate-600 hover:bg-orange-50 hover:text-orange-600'
+                      ? 'bg-orange-500 text-white shadow-md' 
+                      : 'text-slate-700 hover:bg-orange-50 hover:text-orange-655'
                   }`}
                 >
-                  <span className="text-sm">📈</span>
+                  <span className="text-base">📈</span>
                   <span className="truncate">အပတ်စဉ်/လစဉ် အရောင်းစာရင်း</span>
                 </button>
                 <button
                   onClick={() => { onNavigate('settings'); setIsOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-[11px] font-bold rounded-lg transition-all ${
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 text-[13px] font-extrabold rounded-xl transition-all ${
                     activeTab === 'settings' 
-                      ? 'bg-orange-500 text-white shadow-xs' 
-                      : 'text-slate-600 hover:bg-orange-50 hover:text-orange-600'
+                      ? 'bg-orange-500 text-white shadow-md' 
+                      : 'text-slate-700 hover:bg-orange-50 hover:text-orange-655'
                   }`}
                 >
-                  <span className="text-sm">⚙️</span>
+                  <span className="text-base">⚙️</span>
                   <span className="truncate">ဆက်တင်</span>
                 </button>
               </nav>

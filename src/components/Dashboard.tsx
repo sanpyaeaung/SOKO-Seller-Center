@@ -193,7 +193,13 @@ export default function Dashboard({
             {getLowStockProducts().map(prod => (
               <div key={prod.id} className="p-3 bg-rose-50/50 rounded-xl border border-rose-100/80 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2.5">
-                  <span className="text-2xl bg-white w-9 h-9 rounded-lg flex items-center justify-center border border-slate-100 shadow-2xs">{prod.image}</span>
+                  <span className="text-2xl bg-white w-9 h-9 rounded-lg flex items-center justify-center border border-slate-100 shadow-2xs overflow-hidden">
+                    {prod.image && (prod.image.startsWith('http') || prod.image.startsWith('data:image') || prod.image.startsWith('/')) ? (
+                      <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      prod.image || '📦'
+                    )}
+                  </span>
                   <div>
                     <h4 className="font-bold text-slate-850 line-clamp-1">{prod.name}</h4>
                     <span className="text-[10px] text-rose-600 font-bold font-mono">လက်ရှိစတော့ကျန်: {prod.stock_qty} ခု</span>

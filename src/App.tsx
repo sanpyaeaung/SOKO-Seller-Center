@@ -28,6 +28,7 @@ import StorefrontSimulator from './components/StorefrontSimulator';
 import ShopSettingsView from './components/ShopSettingsView';
 import SalesReportView from './components/SalesReportView';
 import InstallPrompt from './components/InstallPrompt';
+import PublicStorefront from './components/PublicStorefront';
 
 // Fallback initial data for new sellers (Req: complete initial onboarding data)
 const MOCK_INITIAL_PRODUCTS_FOR = (ownerUid: string): Product[] => [
@@ -48,6 +49,11 @@ const DEFAULT_SHOP_SETTINGS_FOR = (ownerUid: string): ShopSettings => ({
 });
 
 export default function App() {
+  // Check if we are visiting as a public customer for a specific shop slug
+  const [publicShopSlug] = useState<string | null>(() => {
+    return new URLSearchParams(window.location.search).get('shop');
+  });
+
   // Authentication & Global states
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
@@ -231,7 +237,9 @@ export default function App() {
     customerPhone: string,
     address: string,
     paymentMethod: string,
-    cartItems: OrderItem[]
+    cartItems: OrderItem[],
+    paymentSlipImage?: string,
+    paymentAccountId?: string
   ) => {
     if (!currentUser) return;
 
@@ -247,6 +255,8 @@ export default function App() {
       total_amount: cartTotalPrice,
       status: 'pending',
       payment_method: paymentMethod,
+      payment_slip_image: paymentSlipImage || undefined,
+      payment_account_id: paymentAccountId || undefined,
       created_at: new Date().toISOString(),
       owner_uid: currentUser.uid
     };
@@ -283,6 +293,11 @@ export default function App() {
       throw err;
     }
   };
+
+  // View Loader
+  if (publicShopSlug) {
+    return <PublicStorefront shopSlug={publicShopSlug} />;
+  }
 
   // View Loader
   if (authLoading) {
@@ -445,29 +460,40 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="space-y-1">
-                  <label className="block text-slate-500 font-bold">အိုင်ကွန် (Emoji)</label>
-                  <select 
+                  <label className="block text-slate-500 font-bold">ကုန်ပစ္စည်းပုံစံ (Emoji သို့မဟုတ် Image URL) *</label>
+                  <input 
+                    type="text" 
+                    required
                     value={newProduct.image}
                     onChange={e => setNewProduct({ ...newProduct, image: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 cursor-pointer outline-hidden"
-                  >
-                    <option value="📦">📦 ပါဆယ်ထုပ်</option>
-                    <option value="☕">☕ ကော်ဖီ / လက်ဖက်ရည်</option>
-                    <option value="🍜">🍜 ရှမ်းခေါက်ဆွဲ / မုန့်ဟင်းခါး</option>
-                    <option value="👕">👕 တီရှပ် / လုံချည်</option>
-                    <option value="🍯">🍯 ပျားရည်စစ်စစ်</option>
-                    <option value="👜">👜 ချင်းလွယ်အိတ် / ဖက်ရှင်အိတ်</option>
-                    <option value="🧴">🧴 သနပ်ခါးခရင်မ် / အလှကုန်</option>
-                  </select>
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 focus:bg-white outline-hidden font-bold"
+                    placeholder="📦 သို့မဟုတ် https://pics.com/pic.jpg"
+                  />
+                  <span className="text-[9.5px] text-zinc-400 block pt-0.5 leading-none">အီမိုဂျီ သို့မဟုတ် အင်တာနက် ပုံလင့်ခ် ရေးသွင်းနိုင်ပါသည်</span>
                 </div>
                 <div className="space-y-1">
+                  <label className="block text-slate-500 font-bold">အမြန်ရွေးရန် အီမိုဂျီများ</label>
+                  <div className="flex flex-wrap gap-1.5 p-1.5 bg-slate-50 border border-slate-200 rounded-xl text-lg h-[46px] overflow-y-auto items-center">
+                    {['📦', '☕', '🍜', '👕', '🍯', '👜', '🧴'].map(emo => (
+                      <button
+                        key={emo}
+                        type="button"
+                        onClick={() => setNewProduct({ ...newProduct, image: emo })}
+                        className={`w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white cursor-pointer hover:shadow-2xs border ${newProduct.image === emo ? 'bg-white shadow-2xs border-orange-300' : 'border-transparent'}`}
+                      >
+                        {emo}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-1 sm:col-span-2">
                   <label className="block text-slate-500 font-bold">အမျိုးအစား</label>
                   <select 
                     value={newProduct.category}
                     onChange={e => setNewProduct({ ...newProduct, category: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 cursor-pointer outline-hidden"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 cursor-pointer outline-hidden font-bold"
                   >
                     <option value="စားသောက်ကုန်">စားသောက်ကုန်</option>
                     <option value="အဝတ်အထည်">အဝတ်အထည်</option>

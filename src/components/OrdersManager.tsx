@@ -86,6 +86,31 @@ export default function OrdersManager({
                   ))}
                 </div>
               </div>
+
+              {/* Payment Slip Attachment Section if present */}
+              {order.payment_slip_image && (
+                <div className="bg-orange-50/50 p-3 rounded-2xl border border-orange-100 flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="flex-shrink-0">
+                    <p className="text-[9px] text-orange-600 font-extrabold uppercase tracking-wider mb-1.5">ငွေလွှဲဖြတ်ပိုင်း / ပြေစာ</p>
+                    <a 
+                      href={order.payment_slip_image} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="block relative w-20 h-20 rounded-xl overflow-hidden border border-orange-200 shadow-2xs group cursor-zoom-in bg-white"
+                      title="ပုံကြီးချဲ့ရန်နှိပ်ပါ"
+                    >
+                      <img src={order.payment_slip_image} alt="ငွေလွှဲဖြတ်ပိုင်း" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[9.5px] font-black">
+                        🔍 ပုံကြီးကြည့်ရန်
+                      </div>
+                    </a>
+                  </div>
+                  <div className="text-[10px] text-orange-950 font-bold leading-normal">
+                    <p className="text-orange-900">💡 ဝယ်ယူသူမှ မှာယူစဉ် တိုက်ရိုက်ပူးတွဲပေးခဲ့သော ငွေလွှဲဖြတ်ပိုင်း ဖြစ်ပါသည်။</p>
+                    <p className="text-slate-450 font-semibold mt-0.5">ပုံကိုနှိပ်၍ window အသစ်တွင် full size ချက်ချင်းကြည့်ရှုနိုင်ပါသည်</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Price and Status Actions Side */}

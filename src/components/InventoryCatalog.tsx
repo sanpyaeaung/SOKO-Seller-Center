@@ -34,8 +34,12 @@ export default function InventoryCatalog({
         {products.map(prod => (
           <div key={prod.id} className="p-4 bg-[#FFF8F0]/30 rounded-2xl border border-orange-100 hover:border-orange-200 transition-all flex flex-col justify-between gap-4 shadow-2xs">
             <div className="flex gap-3">
-              <span className="text-3xl bg-white w-12 h-12 rounded-xl flex items-center justify-center border border-orange-100 shadow-3xs flex-shrink-0">
-                {prod.image || '📦'}
+              <span className="text-3xl bg-white w-12 h-12 rounded-xl flex items-center justify-center border border-orange-100 shadow-3xs flex-shrink-0 overflow-hidden">
+                {prod.image && (prod.image.startsWith('http') || prod.image.startsWith('data:image') || prod.image.startsWith('/')) ? (
+                  <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  prod.image || '📦'
+                )}
               </span>
               <div className="space-y-1">
                 <span className="inline-block text-[10px] bg-orange-50 text-orange-600 border border-orange-100 px-2 py-0.5 rounded-full font-black">

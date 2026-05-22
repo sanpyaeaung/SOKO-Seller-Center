@@ -4,7 +4,15 @@ import { Product, Order, ShopSettings } from '../types';
 interface StorefrontSimulatorProps {
   products: Product[];
   shopInfo: ShopSettings;
-  onPlaceOrder: (customerName: string, customerPhone: string, address: string, paymentMethod: string, cartItems: { product_id: string, name: string, quantity: number, price: number }[]) => Promise<void>;
+  onPlaceOrder: (
+    customerName: string, 
+    customerPhone: string, 
+    address: string, 
+    paymentMethod: string, 
+    cartItems: { product_id: string, name: string, quantity: number, price: number }[],
+    paymentSlipImage?: string,
+    paymentAccountId?: string
+  ) => Promise<void>;
   onShowToast: (msg: string, type?: 'success' | 'error') => void;
 }
 
@@ -17,6 +25,24 @@ export default function StorefrontSimulator({
   const [cart, setCart] = useState<Record<string, number>>({});
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '', address: '', payment: 'KBZPay' });
   const [simStep, setSimStep] = useState<'browse' | 'cart' | 'success'>('browse');
+
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('cod');
+  const [paymentSlipImage, setPaymentSlipImage] = useState<string>('');
+
+  const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        onShowToast('ပုံအရွယ်အစား အရမ်းကြီးလွန်းပါသည်၊ ကျေးဇူးပြု၍ 2MB အောက်ရှိ ပုံကို ထည့်သွင်းပေးပါခင်ဗျာ။', 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPaymentSlipImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const totalCartCount = Object.keys(cart).reduce((sum, key) => sum + (cart[key] || 0), 0);
 
@@ -65,15 +91,37 @@ export default function StorefrontSimulator({
       return;
     }
 
+    // Require receipt slip if they choose bank/mobile transfer
+    if (selectedAccountId !== 'cod' && !paymentSlipImage) {
+      onShowToast('⚠️ ကျေးဇူးပြု၍ စမ်းသပ်ရန် ငွေလွှဲပြေစာ ဖြတ်ပိုင်းပုံထည့်သွင်းပေးပါခင်ဗျာ။', 'error');
+      return;
+    }
+
+    // Resolve name of simulated payment method
+    let methodLabel = 'Cash on Delivery';
+    if (selectedAccountId !== 'cod') {
+      if (selectedAccountId === 'legacy-kpay') {
+        methodLabel = `KBZPay (${shopInfo.kpay_number})`;
+      } else {
+        const foundAcc = shopInfo.payment_accounts?.find(a => a.id === selectedAccountId);
+        if (foundAcc) {
+          methodLabel = `${foundAcc.provider} (${foundAcc.account_number})`;
+        }
+      }
+    }
+
     try {
       await onPlaceOrder(
         customerInfo.name,
         customerInfo.phone,
         customerInfo.address,
-        customerInfo.payment,
-        cartItemsLists
+        methodLabel,
+        cartItemsLists,
+        paymentSlipImage || undefined,
+        selectedAccountId !== 'cod' ? selectedAccountId : undefined
       );
       setCart({});
+      setPaymentSlipImage('');
       setCustomerInfo({ name: '', phone: '', address: '', payment: 'KBZPay' });
       setSimStep('success');
     } catch (err) {
@@ -83,7 +131,7 @@ export default function StorefrontSimulator({
   };
 
   const copyStoreUrl = () => {
-    const fullUrl = `https://soko.com/shop/${shopInfo.slug}`;
+    const fullUrl = `${window.location.origin}/?shop=${shopInfo.slug}`;
     navigator.clipboard.writeText(fullUrl);
     onShowToast('စတိုးလင့်ခ်ကို ကော်ပီကူးယူပြီးပါပြီ။');
   };
@@ -119,7 +167,7 @@ export default function StorefrontSimulator({
               <input 
                 type="text" 
                 readOnly 
-                value={`https://soko.com/shop/${shopInfo.slug}`} 
+                value={`${window.location.origin}/?shop=${shopInfo.slug}`} 
                 className="bg-orange-50/50 border border-orange-200 text-xs px-3 py-2 rounded-xl flex-1 font-mono text-orange-700 focus:outline-hidden font-bold"
               />
               <button 
@@ -183,7 +231,13 @@ export default function StorefrontSimulator({
                           return (
                             <div key={prod.id} className="p-3 bg-white rounded-xl border border-orange-100 flex justify-between items-center shadow-3xs hover:border-orange-200">
                               <div className="flex gap-2.5 items-center">
-                                <span className="text-2xl bg-orange-55/20 w-10 h-10 rounded-lg flex items-center justify-center border border-orange-100">{prod.image}</span>
+                                <span className="text-2xl bg-orange-55/20 w-10 h-10 rounded-lg flex items-center justify-center border border-orange-100 overflow-hidden">
+                                  {prod.image && (prod.image.startsWith('http') || prod.image.startsWith('data:image') || prod.image.startsWith('/')) ? (
+                                    <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                  ) : (
+                                    prod.image || '📦'
+                                  )}
+                                </span>
                                 <div>
                                   <h5 className="font-bold text-slate-800 text-[11px] line-clamp-1">{prod.name}</h5>
                                   <p className="text-[11.5px] font-black text-orange-600 font-mono">{prod.price.toLocaleString()} Ks</p>
@@ -293,25 +347,78 @@ export default function StorefrontSimulator({
                           <div className="space-y-1">
                             <label className="block text-slate-505 font-bold">ငွေချေစနစ် *</label>
                             <select 
-                              value={customerInfo.payment}
-                              onChange={e => setCustomerInfo({ ...customerInfo, payment: e.target.value })}
+                              value={selectedAccountId}
+                              onChange={e => {
+                                setSelectedAccountId(e.target.value);
+                                if (e.target.value === 'cod') setPaymentSlipImage('');
+                              }}
                               className="w-full bg-white border border-orange-100 rounded-xl p-2.5 text-xs outline-hidden cursor-pointer font-bold"
                             >
-                              <option value="KBZPay">KBZPay (ကြိုတင်ငွေလွှဲ)</option>
-                              <option value="WaveMoney">WavePay (ကြိုတင်ငွေလွှဲ)</option>
-                              <option value="Cash on Delivery">Cash on Delivery (အိမ်ရောက်ငွေချေ)</option>
+                              <option value="cod">Cash on Delivery (အိမ်ရောက်ငွေချေ)</option>
+                              
+                              {/* Dynamic payment accounts */}
+                              {(shopInfo.payment_accounts || []).map(acc => (
+                                <option key={acc.id} value={acc.id}>
+                                  {acc.provider} - {acc.account_number}
+                                </option>
+                              ))}
+
+                              {/* Legacy backup */}
+                              {(!shopInfo.payment_accounts || shopInfo.payment_accounts.length === 0) && shopInfo.kpay_number && (
+                                <option value="legacy-kpay">
+                                  KBZPay - {shopInfo.kpay_number}
+                                </option>
+                              )}
                             </select>
                           </div>
                         </div>
 
                         {/* Interactive wallets instructions inside phone chassis */}
-                        {customerInfo.payment !== 'Cash on Delivery' && (
-                          <div className="p-3 bg-orange-50 rounded-xl border border-orange-100 text-[10px] space-y-1 text-orange-900 leading-normal font-bold">
-                            <p className="font-extrabold flex items-center gap-1 text-orange-600">🏦 KPay/Wave QR ဖြင့်ငွေလွှဲပါရန် </p>
-                            <p className="font-medium">လက်ခံနံပါတ်: <strong>{shopInfo.kpay_number}</strong></p>
-                            <p className="font-medium">အမည်ပေါက်: <strong>{shopInfo.kpay_name}</strong></p>
-                            <div className="w-16 h-16 bg-white mx-auto border border-orange-200 flex items-center justify-center font-bold text-[8px] text-slate-350 rounded mt-1.5 shadow-2xs">
-                              [ QR Code ]
+                        {selectedAccountId !== 'cod' && (
+                          <div className="p-3 bg-orange-50 rounded-xl border border-orange-100 text-[10px] space-y-2 text-orange-900 leading-normal font-bold">
+                            {(() => {
+                              const acc = shopInfo.payment_accounts?.find(a => a.id === selectedAccountId);
+                              const isLegacy = selectedAccountId === 'legacy-kpay';
+                              const provider = isLegacy ? 'KBZPay' : (acc?.provider || '');
+                              const number = isLegacy ? shopInfo.kpay_number : (acc?.account_number || '');
+                              const name = isLegacy ? shopInfo.kpay_name : (acc?.account_name || '');
+
+                              return (
+                                <div className="space-y-1 bg-white/85 p-2 rounded-lg border border-orange-100/50">
+                                  <p className="font-extrabold flex items-center gap-1 text-orange-600">🏦 ငွေလွှဲပေးချေရန်</p>
+                                  <p className="font-medium text-[9px]">ငွေလွှဲစနစ်: <strong>{provider}</strong></p>
+                                  <p className="font-medium text-[9px]">အကောင့်နံပါတ်: <strong className="text-orange-650 tracking-wider font-mono">{number}</strong></p>
+                                  <p className="font-medium text-[9px]">အမည်: <strong>{name}</strong></p>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Uploader UI adapted for Phone frame */}
+                            <div className="space-y-1 mt-1.5 border-t border-orange-100/30 pt-1.5">
+                              <p className="text-[9px] font-black text-slate-800">📸 ငွေလွှဲပြေစာ ပူးတွဲတင်သွင်းရန် *</p>
+                              {paymentSlipImage ? (
+                                <div className="relative w-16 h-16 bg-white border border-orange-200 rounded-lg overflow-hidden mx-auto">
+                                  <img src={paymentSlipImage} className="w-full h-full object-cover" alt="တောင်းယူသူပြေစာ" />
+                                  <button
+                                    type="button"
+                                    onClick={() => setPaymentSlipImage('')}
+                                    className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-rose-600 text-white rounded-full text-[8px] flex items-center justify-center font-black cursor-pointer shadow-sm"
+                                  >
+                                    ✕
+                                  </button>
+                                </div>
+                              ) : (
+                                <label className="flex flex-col items-center justify-center p-2 border border-dashed border-orange-200 hover:bg-orange-100/50 rounded-xl cursor-pointer text-center bg-white">
+                                  <span className="text-xs">🧾</span>
+                                  <span className="text-[8px] font-black text-orange-600 mt-0.5">ပြေစာတင်ရန် နှိပ်ပါ</span>
+                                  <input 
+                                    type="file" 
+                                    accept="image/*"
+                                    onChange={handleReceiptChange}
+                                    className="hidden" 
+                                  />
+                                </label>
+                              )}
                             </div>
                           </div>
                         )}

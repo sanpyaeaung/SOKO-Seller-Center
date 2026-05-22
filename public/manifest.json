@@ -4,19 +4,27 @@
   "description": "Myanmar local products seller center with customer storefront simulator",
   "icons": [
     {
-      "src": "https://img.icons8.com/?size=192&id=T967y1aorpxV&format=png",
-      "type": "image/png",
-      "sizes": "192x192"
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any"
     },
     {
-      "src": "https://img.icons8.com/?size=512&id=T967y1aorpxV&format=png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any"
     }
   ],
   "start_url": "/",
-  "background_color": "#0d9488",
-  "theme_color": "#0d9488",
+  "background_color": "#f97316",
+  "theme_color": "#f97316",
   "display": "standalone",
   "orientation": "portrait"
 }
