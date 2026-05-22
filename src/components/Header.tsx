@@ -42,11 +42,20 @@ export default function Header({ user, shopName, shopSlug, activeTab, onNavigate
           </div>
         </div>
 
-        {/* Center: Patriotic slogan badge */}
-        <div id="header-patriotic-badge" className="flex items-center gap-1 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-lg">
-          <span className="text-[10px] font-black text-orange-600 leading-none">
-            🇲🇲 " ပြည်တွင်းဖြစ်ကိုအားပေးပါ "
-          </span>
+        {/* Center: Patriotic slogan badge & Admin connection shortcut */}
+        <div className="flex items-center gap-2">
+          <div id="header-patriotic-badge" className="flex items-center gap-1 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-lg">
+            <span className="text-[10px] font-black text-orange-600 leading-none">
+              🇲🇲 " ပြည်တွင်းဖြစ်ကိုအားပေးပါ "
+            </span>
+          </div>
+          <a
+            href="/admin/index.html"
+            className="hidden sm:flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 border border-amber-400 px-2.5 py-1 rounded-lg text-white font-black text-[9.5px] uppercase transition cursor-pointer active:scale-95 shadow-3xs"
+            title="စူပါအက်ဒမင် ဟတ်ဘ်သို့ တိုက်ရိုက်သွားရန်"
+          >
+            <span>🔐 Admin Panel</span>
+          </a>
         </div>
 
         {/* Right Side: Active user avatar and slug indicator */}
@@ -175,6 +184,13 @@ export default function Header({ user, shopName, shopSlug, activeTab, onNavigate
                   <span className="text-base">⚙️</span>
                   <span className="truncate">ဆက်တင်</span>
                 </button>
+                <a
+                  href="/admin/index.html"
+                  className="w-full flex items-center gap-3 px-4 py-3.5 text-[13px] font-extrabold rounded-xl transition-all text-amber-700 bg-amber-50/50 hover:bg-amber-100/50 border border-amber-200/50"
+                >
+                  <span className="text-base">👑</span>
+                  <span className="truncate">စူပါအက်ဒမင် (Admin Panel)</span>
+                </a>
               </nav>
             </div>
 

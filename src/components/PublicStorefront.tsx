@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db, OperationType, handleFirestoreError } from '../firebase';
 import { Product, ShopSettings, Order, OrderItem } from '../types';
+import { compressBase64Image } from '../utils';
 
 interface PublicStorefrontProps {
   shopSlug: string;
@@ -12,6 +13,10 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Global Broadcast Pop-up states for public website visitors
+  const [globalNoti, setGlobalNoti] = useState<{ title: string; body: string; type: string; active: boolean; updated_at?: string } | null>(null);
+  const [dismissedNotiTime, setDismissedNotiTime] = useState<string>('');
 
   // Cart and checkout states
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -25,20 +30,192 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
   const [paymentSlipImage, setPaymentSlipImage] = useState<string>('');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('cod');
 
+  // Product detailed modal and latest submitted order states
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [latestOrder, setLatestOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    if (!shopSettings) return;
+    const modes = shopSettings.allowed_payment_modes || 'both';
+    if (modes === 'cod') {
+      setSelectedAccountId('cod');
+    } else if (modes === 'prepay' && selectedAccountId === 'cod') {
+      const firstAcc = shopSettings.payment_accounts?.[0]?.id || 'legacy-kpay';
+      setSelectedAccountId(firstAcc);
+    }
+  }, [shopSettings, selectedAccountId]);
+
   const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) { // 2MB limit to guard Firestore limits
-        alert('ပုံအရွယ်အစား အရမ်းကြီးလွန်းပါသည်၊ ကျေးဇူးပြု၍ 2MB အောက်ရှိ ပုံကို ထည့်သွင်းပေးပါခင်ဗျာ။');
+      if (file.size > 12 * 1024 * 1024) { // Increased to 12MB limit because we instantly compress it anyway!
+        alert('ပုံအရွယ်အစား အရမ်းကြီးလွန်းပါသည်၊ ကျေးဇူးပြု၍ ၁၂ မက်ဂါဘိုက်ထက်ငယ်သောပုံကို ထည့်သွင်းပေးပါခင်ဗျာ။');
         return;
       }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPaymentSlipImage(reader.result as string);
+      reader.onloadend = async () => {
+        try {
+          const rawBase64 = reader.result as string;
+          // Apply instant downsampling compression to keep load fast and Firestore safe!
+          const compressed = await compressBase64Image(rawBase64);
+          setPaymentSlipImage(compressed);
+        } catch (err) {
+          setPaymentSlipImage(reader.result as string);
+        }
       };
       reader.readAsDataURL(file);
     }
   };
+
+  // Automatically draws thermal POS cash receipt on HTML5 Canvas and starts native download in high definition
+  const handleDownloadVoucherPNG = (order: Order) => {
+    if (!shopSettings) return;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // High definition backing scale factor (makes PNG perfectly sharp/non-blurry on high-DPI and mobile screens)
+    const scale = 3;
+    const logicalWidth = 400;
+
+    // Calculate dynamic heights
+    const headerHeight = 150;
+    const itemRowHeight = 25;
+    const itemsCount = order.items.length;
+    const footerHeight = 145;
+    const logicalHeight = headerHeight + (itemsCount * itemRowHeight) + footerHeight;
+    
+    canvas.width = logicalWidth * scale;
+    canvas.height = logicalHeight * scale;
+
+    // Apply scaling transform so we can draw in standard logical coordinate units
+    ctx.scale(scale, scale);
+
+    // Fill soft thermal-paper warm background tint
+    ctx.fillStyle = '#FCFBF6';
+    ctx.fillRect(0, 0, logicalWidth, logicalHeight);
+
+    // Thermal-style dash separator helper
+    const drawDashedLine = (y: number) => {
+      ctx.strokeStyle = '#CBD5E1';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(25, y);
+      ctx.lineTo(logicalWidth - 25, y);
+      ctx.stroke();
+      ctx.setLineDash([]); // Reset
+    };
+
+    // Header styling
+    ctx.fillStyle = '#0F172A'; // Slate 900
+    ctx.textAlign = 'center';
+
+    // Bold display title - Shop Name (using robust aesthetic font stack with Myanmar unicode fallbacks)
+    ctx.font = 'bold 16px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+    ctx.fillText(shopSettings.name, logicalWidth / 2, 40);
+
+    // Subtitle matching live mockup
+    ctx.font = 'bold 10px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+    ctx.fillStyle = '#64748B';
+    ctx.fillText('*** SOKO CLOUD RECEIPT ***', logicalWidth / 2, 60);
+
+    // Date
+    ctx.font = '9px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+    ctx.fillStyle = '#94A3B8';
+    ctx.fillText(new Date(order.created_at).toLocaleString(), logicalWidth / 2, 78);
+
+    drawDashedLine(95);
+
+    // Receipt key-value meta information
+    const drawMetaRow = (label: string, value: string, y: number) => {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#475569';
+      ctx.font = 'bold 10.5px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+      ctx.fillText(label, 25, y);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#0F172A';
+      ctx.font = 'bold 10.5px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+      ctx.fillText(value, logicalWidth - 25, y);
+    };
+
+    drawMetaRow('Order ID:', order.id, 115);
+    drawMetaRow('Customer:', order.customer_name || 'N/A', 132);
+    drawMetaRow('Phone:', order.customer_phone || 'N/A', 149);
+    drawMetaRow('Payment:', order.payment_method.split(' ')[0], 166);
+
+    drawDashedLine(182);
+
+    // Items table header headings
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#0F172A';
+    ctx.font = 'bold 11px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+    ctx.fillText('Items Details', 25, 202);
+    ctx.textAlign = 'right';
+    ctx.fillText('Amt', logicalWidth - 25, 202);
+
+    drawDashedLine(212);
+
+    // Write items loop entries dynamically
+    let currentY = 232;
+    order.items.forEach((item) => {
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#334155';
+      ctx.font = '10.5px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+      
+      // Cut off long product names beautifully to prevent overlap
+      const truncatedName = item.name.length > 28 ? item.name.substring(0, 26) + '..' : item.name;
+      ctx.fillText(`${truncatedName} x${item.quantity}`, 25, currentY);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#0F172A';
+      ctx.font = 'bold 10.5px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+      ctx.fillText(`${(item.price * item.quantity).toLocaleString()} K`, logicalWidth - 25, currentY);
+
+      currentY += itemRowHeight;
+    });
+
+    drawDashedLine(currentY - 5);
+
+    // Grand total summation line
+    currentY += 20;
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 11.5px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+    ctx.fillStyle = '#0F172A';
+    ctx.fillText('Grand Total:', 25, currentY);
+
+    ctx.textAlign = 'right';
+    ctx.font = 'bold 13px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+    ctx.fillStyle = '#EA580C'; // Precise Bright Orange accent color
+    ctx.fillText(`${order.total_amount.toLocaleString()} Ks`, logicalWidth - 25, currentY);
+
+    // Footer signature notice
+    currentY += 25;
+    drawDashedLine(currentY);
+
+    currentY += 25;
+    ctx.fillStyle = '#94A3B8';
+    ctx.textAlign = 'center';
+    ctx.font = 'italic 9.5px "Inter", "Pyidaungsu", "Noto Sans Myanmar", sans-serif';
+    ctx.fillText('“ Thank you for supporting native shops ”', logicalWidth / 2, currentY);
+
+    // Start download process
+    try {
+      const dataUrl = canvas.toDataURL('image/png');
+      const downloadLink = document.createElement('a');
+      downloadLink.href = dataUrl;
+      downloadLink.download = `soko_voucher_${order.id}.png`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    } catch (err) {
+      console.error('Canvas export failed:', err);
+      alert('Voucher ဒေါင်းလုဒ်လုပ်ခွင့် မရှိပါသဖြင့် error ဖြစ်သွားပါသည်၊ သင့် browser ၏ download rules ပိတ်ထားခြင်း ရှိမရှိ စစ်ဆေးပေးပါ။');
+    }
+  };
+
 
   // Fetch shop settings & products upon load
   useEffect(() => {
@@ -85,6 +262,31 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
       loadStorefront();
     }
   }, [shopSlug]);
+
+  // Global Broadcast Pop-up Real-time observer
+  useEffect(() => {
+    const unsubBroadcast = onSnapshot(doc(db, 'broadcasts', 'global'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.active) {
+          setGlobalNoti({
+            title: data.title,
+            body: data.body,
+            type: data.type || 'info',
+            active: true,
+            updated_at: data.updated_at
+          });
+        } else {
+          setGlobalNoti(null);
+        }
+      } else {
+        setGlobalNoti(null);
+      }
+    }, (err) => {
+      console.error('Failed to load broadcasts:', err);
+    });
+    return () => unsubBroadcast();
+  }, []);
 
   // Derived category lists
   const categories = useMemo(() => {
@@ -191,20 +393,30 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
       total_amount: cartTotalAmount,
       status: 'pending',
       payment_method: methodLabel,
-      payment_account_id: selectedAccountId !== 'cod' ? selectedAccountId : undefined,
-      payment_slip_image: paymentSlipImage || undefined,
       created_at: new Date().toISOString(),
-      owner_uid: shopSettings.owner_uid
+      owner_uid: shopSettings.owner_uid,
+      ...(selectedAccountId !== 'cod' ? { payment_account_id: selectedAccountId } : {}),
+      ...(paymentSlipImage ? { payment_slip_image: paymentSlipImage } : {})
     };
 
     try {
       // Create guest order inside Firebase
       await setDoc(doc(db, 'orders', orderId), orderPayload);
       
+      // Save order context for auto voucher receipt downloads
+      setLatestOrder(orderPayload);
+
       // Clear Cart state on successful purchase
       setCart({});
       setPaymentSlipImage('');
       setCheckoutStep('success');
+
+      // Automatically draw thermal POS cash receipt on HTML5 Canvas and starts native download
+      try {
+        handleDownloadVoucherPNG(orderPayload);
+      } catch (dlErr) {
+        console.error('Auto download failed: ', dlErr);
+      }
     } catch (err) {
       console.error(err);
       alert('အမှာစာတင်သွင်းခြင်း ချို့ယွင်းချက် ဖြစ်သွားပါသည်၊ သင့်အင်တာနက်လိုင်းအား ပြန်လည်စစ်ဆေးပြီး နောက်တစ်ခေါက် ထပ်မံကြိုးစားပေးပါခင်ဗျာ။');
@@ -295,17 +507,34 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
         {checkoutStep === 'browse' && (
           <div className="space-y-6">
             {/* Filter and Search Ribbon */}
-            <div className="flex flex-col sm:flex-row justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-205 shadow-3xs">
-              {/* Search Bar */}
-              <div className="relative flex-1">
-                <input 
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="ပစ္စည်းအမည်ဖြင့် ရှာဖွေပါ..."
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 outline-hidden font-bold"
-                />
-                <span className="absolute left-3 top-2 text-slate-400 font-semibold text-xs select-none">🔍</span>
+            <div className="flex flex-col sm:flex-row justify-between gap-3.5 bg-white p-3.5 rounded-2xl border border-slate-205 shadow-3xs">
+              {/* Search Bar with button */}
+              <div className="flex gap-2 flex-1 items-center">
+                <div className="relative flex-1">
+                  <input 
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="ပစ္စည်းအမည်ဖြင့် ရှာဖွေပါ..."
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 outline-hidden font-bold"
+                  />
+                  <span className="absolute left-3 top-2 text-slate-400 font-semibold text-xs select-none">🔍</span>
+                </div>
+                <button
+                  type="button"
+                  className="bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-[11px] px-3.5 py-2 rounded-xl active:scale-95 transition cursor-pointer flex items-center justify-center gap-1 shadow-xs flex-shrink-0"
+                >
+                  ရှာမည်
+                </button>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-2.5 py-2 rounded-xl transition cursor-pointer flex-shrink-0"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
 
               {/* Categories badge scrollable tabs */}
@@ -334,7 +563,11 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
 
                 return (
                   <div key={prod.id} className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between gap-4.5 shadow-3xs hover:border-orange-200 transition-all">
-                    <div className="flex gap-3">
+                    <div 
+                      className="flex gap-3 cursor-pointer hover:opacity-90 transition-all"
+                      onClick={() => setDetailProduct(prod)}
+                      title="အသေးစိတ်ကြည့်ရန် နှိပ်ပါ"
+                    >
                       <span className="text-3xl bg-orange-50/20 w-12 h-12 rounded-xl flex items-center justify-center border border-orange-100 shadow-3xs flex-shrink-0 overflow-hidden select-none">
                         {isUrlImage ? (
                           <img src={prod.image} alt={prod.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -483,32 +716,76 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
                   />
                 </div>
 
-                <div className="sm:col-span-2 space-y-1">
-                  <label className="block text-slate-505">ငွေချေစနစ် ရွေးချယ်ရန် *</label>
-                  <select 
-                    value={selectedAccountId}
-                    onChange={e => {
-                      setSelectedAccountId(e.target.value);
-                      if (e.target.value === 'cod') setPaymentSlipImage('');
-                    }}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 focus:bg-white outline-hidden cursor-pointer font-bold font-sans"
-                  >
-                    <option value="cod">Cash on Delivery (အိမ်ရောက်မှ ငွေချေစနစ်)</option>
-                    
-                    {/* Dynamic payment accounts registered by the merchant */}
-                    {(shopSettings.payment_accounts || []).map(acc => (
-                      <option key={acc.id} value={acc.id}>
-                        {acc.provider} - {acc.account_number} ({acc.account_name})
-                      </option>
-                    ))}
-
-                    {/* Fallback legacy account if no dynamic accounts exist */}
-                    {(!shopSettings.payment_accounts || shopSettings.payment_accounts.length === 0) && shopSettings.kpay_number && (
-                      <option value="legacy-kpay">
-                        KBZPay - {shopSettings.kpay_number} ({shopSettings.kpay_name})
-                      </option>
+                <div className="sm:col-span-2 space-y-2.5 text-left">
+                  <label className="block text-slate-700 font-extrabold text-xs">💸 ငွေချေမှု ပုံစံရွေးချယ်ရန် (Payment Mode) *</label>
+                  
+                  <div className={`grid gap-3 ${(shopSettings.allowed_payment_modes || 'both') === 'both' ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {/* Option 1: Cash On Delivery */}
+                    {((shopSettings.allowed_payment_modes || 'both') === 'both' || shopSettings.allowed_payment_modes === 'cod') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedAccountId('cod');
+                          setPaymentSlipImage('');
+                        }}
+                        className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border-2 text-center space-y-1.5 cursor-pointer transition active:scale-95 ${
+                          selectedAccountId === 'cod'
+                            ? 'border-orange-500 bg-orange-50/20 text-orange-600 shadow-3xs'
+                            : 'border-slate-250 bg-slate-50 text-slate-700 hover:border-slate-350'
+                        }`}
+                      >
+                        <span className="text-xl">🚚</span>
+                        <span className="font-extrabold text-[11px] leading-tight">လက်ခံမှရှင်းမည် (COD)</span>
+                        <span className="text-[9px] text-slate-400 font-bold block">(Cash on Delivery)</span>
+                      </button>
                     )}
-                  </select>
+
+                    {/* Option 2: Pre-pay / Instant Mobile Pay */}
+                    {((shopSettings.allowed_payment_modes || 'both') === 'both' || shopSettings.allowed_payment_modes === 'prepay') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const firstAcc = shopSettings.payment_accounts?.[0]?.id || 'legacy-kpay';
+                          setSelectedAccountId(firstAcc);
+                        }}
+                        className={`flex flex-col items-center justify-center p-3.5 rounded-2xl border-2 text-center space-y-1.5 cursor-pointer transition active:scale-95 ${
+                          selectedAccountId !== 'cod'
+                            ? 'border-orange-500 bg-orange-50/20 text-orange-600 shadow-3xs'
+                            : 'border-slate-250 bg-slate-50 text-slate-700 hover:border-slate-350'
+                        }`}
+                      >
+                        <span className="text-xl">💳</span>
+                        <span className="font-extrabold text-[11px] leading-tight">လက်ငင်း/ကြိုတင်ငွေချေမည်</span>
+                        <span className="text-[9px] text-slate-400 font-bold block">(Mobile Wallet / Bank)</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* If instant payment is chosen, show wallet list dropdown further */}
+                  {selectedAccountId !== 'cod' && (
+                    <div className="space-y-1 pt-1 animate-fade-in text-left">
+                      <label className="text-[9.5px] text-zinc-500 font-bold block">👉 ကျေးဇူးပြု၍ ငွေသွင်းလိုသော ဘဏ်/Wallet ကို ရွေးချယ်ပေးပါ:</label>
+                      <select 
+                        value={selectedAccountId}
+                        onChange={e => setSelectedAccountId(e.target.value)}
+                        className="w-full bg-slate-50 border-2 border-orange-100 rounded-xl p-3 text-slate-800 focus:bg-white outline-hidden cursor-pointer font-bold font-sans text-xs"
+                      >
+                        {/* Dynamic payment accounts registered by the merchant */}
+                        {(shopSettings.payment_accounts || []).map(acc => (
+                          <option key={acc.id} value={acc.id}>
+                            {acc.provider} - {acc.account_number} ({acc.account_name})
+                          </option>
+                        ))}
+
+                        {/* Fallback legacy account if no dynamic accounts exist */}
+                        {(!shopSettings.payment_accounts || shopSettings.payment_accounts.length === 0) && shopSettings.kpay_number && (
+                          <option value="legacy-kpay">
+                            KBZPay - {shopSettings.kpay_number} ({shopSettings.kpay_name})
+                          </option>
+                        )}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -617,7 +894,7 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
         )}
 
         {checkoutStep === 'success' && (
-          <div className="bg-white rounded-3xl border border-slate-250 p-8 text-center space-y-6 max-w-md mx-auto shadow-md animate-fade-in my-12">
+          <div className="bg-white rounded-3xl border border-slate-250 p-6 sm:p-8 text-center space-y-6 max-w-md mx-auto shadow-md animate-fade-in my-12">
             <div className="w-16 h-16 bg-orange-50 border border-orange-100 text-orange-600 rounded-full flex items-center justify-center mx-auto text-4xl shadow-xs animate-bounce">
               🎉
             </div>
@@ -626,15 +903,79 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
               <p className="text-xs text-slate-500 font-semibold leading-relaxed">
                 လူကြီးမင်း၏ အော်ဒါစာရင်းသွင်း လက်ခံရရှိပြီးပါပြီ။ {shopSettings.name} ဆိုင်ရှင်ဖြစ်သူမှ အမှာစာအား အတည်ပြုရန် ဆက်သွယ်ပေးပါလိမ့်မည်။
               </p>
+              <div className="bg-emerald-50 text-emerald-800 text-[10px] font-black p-2.5 rounded-xl border border-emerald-100 flex items-center justify-center gap-1.5 font-sans mt-3 animate-pulse">
+                📥 စျေးဝယ်ယူပြီးသဖြင့် ဘောင်ချာပြေစာပုံအား အလိုအလျောက် Download ဆွဲပေးနေပါသည်...
+              </div>
             </div>
 
-            <span className="inline-block text-[10px] sm:text-xs text-orange-655 bg-orange-50/50 border border-orange-100 px-3 py-1.5 rounded-full font-black leading-none">
+            {/* 🧾 Live Thermal-Style Invoice Receipt slip */}
+            {latestOrder && (
+              <div className="border border-dashed border-slate-350 p-4 rounded-2xl bg-[#FCFBF6] text-left space-y-3.5 font-mono text-[11px] text-slate-800 shadow-3xs">
+                <div className="text-center space-y-1 pb-2.5 border-b border-dashed border-slate-300">
+                  <h4 className="font-black text-xs text-slate-900 uppercase tracking-tight">{shopSettings.name}</h4>
+                  <p className="text-[9.5px] text-slate-500 font-bold">*** SOKO CLOUD RECEIPT ***</p>
+                  <p className="text-[9px] text-slate-400 font-semibold">{new Date(latestOrder.created_at).toLocaleString()}</p>
+                </div>
+
+                <div className="space-y-1 text-slate-705">
+                  <p className="flex justify-between">
+                    <span className="font-bold">Order ID:</span>
+                    <span className="font-black text-slate-900">{latestOrder.id}</span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="font-bold">Customer:</span>
+                    <span>{latestOrder.customer_name}</span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="font-bold">Phone:</span>
+                    <span>{latestOrder.customer_phone}</span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span className="font-bold">Payment:</span>
+                    <span className="truncate max-w-[170px]">{latestOrder.payment_method.split(' ')[0]}</span>
+                  </p>
+                </div>
+
+                <div className="border-t border-b border-dashed border-slate-305 py-2.5 space-y-1.5">
+                  <div className="flex justify-between font-black text-slate-900 pb-0.5">
+                    <span>Items Details</span>
+                    <span>Amt</span>
+                  </div>
+                  {latestOrder.items.map((item, index) => (
+                    <div key={index} className="flex justify-between text-slate-650 leading-snug">
+                      <span>{item.name} x{item.quantity}</span>
+                      <span>{(item.price * item.quantity).toLocaleString()} K</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex justify-between font-black text-xs text-slate-900 pt-1">
+                  <span>Grand Total:</span>
+                  <span className="text-orange-600 font-mono">{(latestOrder.total_amount).toLocaleString()} Ks</span>
+                </div>
+
+                <div className="text-center text-[9px] text-slate-400 italic pt-2.5 border-t border-dashed border-slate-200">
+                  “ Thank you for supporting native shops ”
+                </div>
+
+                {/* Instant Action trigger */}
+                <button
+                  type="button"
+                  onClick={() => handleDownloadVoucherPNG(latestOrder)}
+                  className="w-full mt-3.5 bg-slate-900 hover:bg-slate-950 text-white text-[10px] font-black py-2.5 rounded-xl cursor-pointer transition active:scale-95 flex items-center justify-center gap-1.5 shadow-md hover:shadow-lg"
+                >
+                  📥 ဘောင်ချာပုံရိပ် ဒေါင်းလုဒ်ဆွဲမည် (Download Voucher)
+                </button>
+              </div>
+            )}
+
+            <span className="inline-block text-[10px] bg-orange-50 border border-orange-100 px-3 py-1.5 rounded-full font-black leading-none text-orange-600">
               “ ပြည်တွင်းဖြစ်ကို တန်ဖိုးထားအားပေးမှု ကျေးဇူးတင်ပါသည် ”
             </span>
 
             <button 
               onClick={() => setCheckoutStep('browse')}
-              className="w-full bg-orange-500 hover:bg-orange-655 text-white font-bold text-xs py-3 rounded-xl transition cursor-pointer active:scale-95 shadow-md shadow-orange-500/5 block text-center"
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs py-3 rounded-xl transition cursor-pointer active:scale-95 shadow-md shadow-orange-500/5 block text-center"
             >
               ဆိုင်သို့ ပြန်သွားမည်
             </button>
@@ -648,6 +989,135 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
         <p className="text-slate-350">👨‍💻 {shopSettings.name} — တိုက်ရိုက် မှာယူမှုစနစ်</p>
         <p className="text-[9px] text-slate-500"> Powered by SOKO Cloud Software Platform 🇲🇲 ပြည်တွင်းဖြစ်ကိုဦးစားပေးပါ</p>
       </footer>
+
+      {/* Real-time Global Pop-up Notification Broadcast Modal UI */}
+      {globalNoti && globalNoti.active && dismissedNotiTime !== globalNoti.updated_at && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-fade-in text-left">
+          <div className={`bg-white border-2 max-w-lg w-full rounded-3xl p-6.5 space-y-5 shadow-2xl relative ${
+            globalNoti.type === 'danger' 
+              ? 'border-rose-300' 
+              : globalNoti.type === 'warning' 
+              ? 'border-amber-300' 
+              : globalNoti.type === 'success' 
+              ? 'border-emerald-300' 
+              : 'border-indigo-300'
+          }`}>
+            
+            <div className="flex items-start gap-3.5">
+              <span className="text-3xl mt-0.5">
+                {globalNoti.type === 'danger' ? '🚨' : globalNoti.type === 'warning' ? '⚠️' : globalNoti.type === 'success' ? '🎉' : '📢'}
+              </span>
+              <div className="space-y-1.5 flex-1">
+                <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
+                  SOKO System Notification
+                </span>
+                <h3 className="font-extrabold text-slate-905 text-sm leading-snug">
+                  {globalNoti.title}
+                </h3>
+                <p className="text-xs text-slate-705 leading-relaxed whitespace-pre-line font-bold">
+                  {globalNoti.body}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  if (globalNoti.updated_at) {
+                    setDismissedNotiTime(globalNoti.updated_at);
+                  } else {
+                    setDismissedNotiTime('done');
+                  }
+                }}
+                className={`px-6 py-2.5 rounded-xl text-xs font-black cursor-pointer transition active:scale-[0.95] shadow-md ${
+                  globalNoti.type === 'danger'
+                    ? 'bg-rose-600 hover:bg-rose-750 text-white'
+                    : globalNoti.type === 'warning'
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                    : globalNoti.type === 'success'
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                }`}
+              >
+                နားလည်ပါပြီ (OK)
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 🔍 Product details modal overlay popup */}
+      {detailProduct && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-[99999] animate-fade-in text-left">
+          <div className="bg-white border-2 border-orange-100 max-w-sm w-full rounded-2xl overflow-hidden shadow-2xl relative space-y-0 text-slate-800">
+            
+            {/* Close Button */}
+            <button 
+              onClick={() => setDetailProduct(null)}
+              className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold flex items-center justify-center text-xs shadow-xs cursor-pointer"
+            >
+              ✕
+            </button>
+
+            {/* Visual Header */}
+            <div className="p-6 bg-orange-50/30 border-b border-orange-100/30 flex justify-center items-center h-44 relative">
+              {detailProduct.image && (detailProduct.image.startsWith('http') || detailProduct.image.startsWith('data:image') || detailProduct.image.startsWith('/')) ? (
+                <img 
+                  src={detailProduct.image} 
+                  alt={detailProduct.name} 
+                  className="max-h-full max-w-full object-contain rounded-xl select-none"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <span className="text-6xl drop-shadow-md select-none">{detailProduct.image || '📦'}</span>
+              )}
+            </div>
+
+            {/* Content Specifications */}
+            <div className="p-5 space-y-4">
+              <div className="space-y-1">
+                <span className="px-2.5 py-0.5 bg-orange-50 text-orange-600 border border-orange-100 rounded-full text-[9px] font-black uppercase tracking-wider inline-block">
+                  {detailProduct.category || 'အထွေထွေ'}
+                </span>
+                <h4 className="text-sm font-black text-slate-900 tracking-tight leading-snug">{detailProduct.name}</h4>
+                <p className="text-xs font-black text-orange-600">{detailProduct.price.toLocaleString('en-US')} Ks (ကျပ်)</p>
+              </div>
+
+              <div className="py-2.5 border-t border-b border-dashed border-slate-150 space-y-1">
+                <span className="text-[9.5px] text-zinc-400 font-bold uppercase tracking-wider block">ကုန်ပစ္စည်းအသေးစိတ်</span>
+                <p className="text-[11px] text-slate-600 leading-relaxed font-semibold">
+                  အဆင့်မြင့် သန့်ရှင်းလတ်ဆတ်ပြီး အရည်အသွေးအကောင်းဆုံး ကုန်ကြမ်းများဖြင့် သေသပ်စွာ ပြင်ဆင်ဖန်တီးထားသော ကုန်စည်ပစ္စည်း ဖြစ်ပါသည်။ ကျန်းမာသန့်ရှင်းမှု အထူး အာမခံပါသည်။
+                </p>
+              </div>
+
+              <div className="flex justify-between items-center text-[10px]">
+                <span className="text-slate-400 font-bold">သိုလှောင်မှု အခြေအနေ:</span>
+                <span className={`font-black uppercase tracking-tight py-0.5 px-2.5 rounded-full border text-[9px] ${
+                  detailProduct.stock_qty && detailProduct.stock_qty > 0 
+                    ? 'text-emerald-600 bg-emerald-50/50 border-emerald-150' 
+                    : 'text-rose-600 bg-rose-50 border-rose-150'
+                }`}>
+                  ● {detailProduct.stock_qty && detailProduct.stock_qty > 0 ? `လက်ကျန်ရှိသည် (${detailProduct.stock_qty} ခု)` : 'ပစ္စည်းပြတ်လပ်နေပါသည်'}
+                </span>
+              </div>
+
+              {/* Action Buttons */}
+              <button
+                onClick={() => {
+                  handleAddToCart(detailProduct);
+                  setDetailProduct(null);
+                }}
+                disabled={!(detailProduct.stock_qty && detailProduct.stock_qty > 0)}
+                className="w-full bg-orange-500 hover:bg-orange-600 disabled:bg-slate-205 disabled:text-slate-400 text-white font-extrabold py-3.5 rounded-xl transition cursor-pointer text-center text-xs active:scale-[0.97] shadow-lg shadow-orange-500/10 flex items-center justify-center gap-1.5"
+              >
+                🛒 ဈေးဝယ်လှည်းထဲသို့ ထည့်မည် (Add to Cart)
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

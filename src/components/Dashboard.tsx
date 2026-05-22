@@ -131,48 +131,58 @@ export default function Dashboard({
           </div>
 
           <div className="space-y-3">
-            {orders.slice(0, 5).map(order => (
-              <div key={order.id} className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex justify-between items-center text-xs">
-                <div className="space-y-1 my-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="font-extrabold text-slate-800">{order.id}</span>
-                    <span className="text-slate-300">|</span>
-                    <span className="font-bold text-slate-700">{order.customer_name}</span>
-                  </div>
-                  <p className="text-slate-500 font-mono text-[10px]">{order.customer_phone}</p>
-                  <p className="text-[10px] text-slate-600 line-clamp-1 max-w-[180px] sm:max-w-md">
-                    {order.items.map(i => `${i.name} (${i.quantity}ခု)`).join('၊ ')}
-                  </p>
-                </div>
+            {orders.slice(0, 5).map(order => {
+              const isCancelled = order.status === 'cancelled';
+              const isConfirmed = order.status === 'confirmed' || order.status === 'completed' || order.status === 'shipped';
+              const bgClass = isCancelled 
+                ? "p-3.5 bg-rose-50/15 border border-rose-200 text-slate-400 opacity-80 flex justify-between items-center text-xs rounded-xl" 
+                : isConfirmed 
+                ? "p-3.5 bg-emerald-50/15 border border-emerald-250 flex justify-between items-center text-xs hover:bg-emerald-100/10 transition rounded-xl" 
+                : "p-3.5 bg-slate-50 border border-slate-100 flex justify-between items-center text-xs rounded-xl";
 
-                <div className="text-right space-y-2">
-                  <span className="font-black block text-slate-800 font-mono">{order.total_amount.toLocaleString()} Ks</span>
-                  
-                  <div className="flex items-center gap-1.5 justify-end">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold ${
-                      order.status === 'pending' ? 'bg-amber-100 text-amber-800' :
-                      order.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                      order.status === 'shipped' ? 'bg-purple-100 text-purple-800' :
-                      order.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                      'bg-slate-200 text-slate-700'
-                    }`}>
-                      {order.status === 'pending' ? 'စောင့်ဆိုင်းဆဲ' :
-                       order.status === 'confirmed' ? 'အတည်ပြုပြီး' :
-                       order.status === 'shipped' ? 'ပို့ဆောင်ဆဲ' :
-                       order.status === 'completed' ? 'ပြီးဆုံး' : 'ပယ်ဖျက်'}
-                    </span>
+              return (
+                <div key={order.id} className={bgClass}>
+                  <div className="space-y-1 my-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-slate-800">{order.id}</span>
+                      <span className="text-slate-300">|</span>
+                      <span className="font-bold text-slate-700">{order.customer_name}</span>
+                    </div>
+                    <p className="text-slate-500 font-mono text-[10px]">{order.customer_phone}</p>
+                    <p className="text-[10px] text-slate-600 line-clamp-1 max-w-[180px] sm:max-w-md">
+                      {order.items.map(i => `${i.name} (${i.quantity}ခု)`).join('၊ ')}
+                    </p>
+                  </div>
+
+                  <div className="text-right space-y-2">
+                    <span className="font-black block text-slate-800 font-mono">{order.total_amount.toLocaleString()} Ks</span>
                     
-                    <button 
-                      onClick={() => onSelectOrder(order)}
-                      className="p-1.5 bg-white border border-slate-200 rounded-md hover:bg-slate-100 cursor-pointer"
-                      title="ပြေစာထုတ်ရန်"
-                    >
-                      📄
-                    </button>
+                    <div className="flex items-center gap-1.5 justify-end">
+                      <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-bold ${
+                        order.status === 'pending' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                        order.status === 'confirmed' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                        order.status === 'shipped' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                        order.status === 'completed' ? 'bg-teal-100 text-teal-800 border border-teal-200' :
+                        'bg-rose-100 text-rose-850 border border-rose-200'
+                      }`}>
+                        {order.status === 'pending' ? 'စောင့်ဆိုင်းဆဲ' :
+                         order.status === 'confirmed' ? 'အတည်ပြုပြီး' :
+                         order.status === 'shipped' ? 'ပို့ဆောင်ဆဲ' :
+                         order.status === 'completed' ? 'ပြီးဆုံး' : 'ပယ်ဖျက်'}
+                      </span>
+                      
+                      <button 
+                        onClick={() => onSelectOrder(order)}
+                        className="p-1.5 bg-white border border-slate-200 rounded-md hover:bg-slate-100 cursor-pointer text-slate-700"
+                        title="ပြေစာထုတ်ရန်"
+                      >
+                        📄
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             
             {orders.length === 0 && (
               <div className="text-center py-12 text-slate-400 text-xs">
@@ -222,17 +232,7 @@ export default function Dashboard({
             )}
           </div>
 
-          {/* SaaS Core Premium Advertising */}
-          <div className="bg-gradient-to-br from-slate-800 to-slate-950 text-white p-4 rounded-2xl space-y-2 mt-4 shadow-xs relative">
-            <span className="text-[9px] bg-amber-400 text-slate-950 font-bold px-1.5 py-0.5 rounded-full absolute top-3 right-3 uppercase">PRO</span>
-            <h4 className="font-extrabold text-xs">⭐️ SOKO Premium Growth</h4>
-            <p className="text-[10px] text-slate-300 leading-normal">
-              Telegram Chatbot သို့ အရောင်းအော်ဒါများ တိုက်ရိုက်သိပေးခြင်း၊ Messenger API ချိတ်ဆက်ခြင်း၊ နှင့် ကိုယ်ပိုင် PWA custom domain တင်ခြင်းတို့ကို ရယူလိုက်ပါ။
-            </p>
-            <button className="w-full bg-linear-to-r from-teal-500 to-emerald-500 text-white font-extrabold text-[10px] py-1.5 rounded-lg hover:from-teal-600 hover:to-emerald-600 transition cursor-pointer">
-              တစ်လလျှင် ၅,၀၀၀ ကျပ် ဖြင့်အဆင့်မြှင့်မည်
-            </button>
-          </div>
+
         </div>
 
       </div>

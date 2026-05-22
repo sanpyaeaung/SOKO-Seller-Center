@@ -39,6 +39,7 @@ export interface PaymentAccount {
 
 export interface ShopSettings {
   owner_uid: string;
+  parent_uid?: string; // Links branch settings to original merchant UID
   name: string;
   phone: string;
   address: string;
@@ -46,4 +47,5 @@ export interface ShopSettings {
   kpay_name: string;
   slug: string;
   payment_accounts?: PaymentAccount[]; // Unlimited banking/mobile payment accounts
+  allowed_payment_modes?: 'both' | 'cod' | 'prepay'; // Both modes, cash on delivery only, or online prepay only
 }

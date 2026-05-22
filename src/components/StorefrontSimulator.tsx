@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Product, Order, ShopSettings } from '../types';
+import { compressBase64Image } from '../utils';
 
 interface StorefrontSimulatorProps {
   products: Product[];
@@ -29,20 +30,39 @@ export default function StorefrontSimulator({
   const [selectedAccountId, setSelectedAccountId] = useState<string>('cod');
   const [paymentSlipImage, setPaymentSlipImage] = useState<string>('');
 
+  React.useEffect(() => {
+    if (!shopInfo) return;
+    const modes = shopInfo.allowed_payment_modes || 'both';
+    if (modes === 'cod') {
+      setSelectedAccountId('cod');
+    } else if (modes === 'prepay' && selectedAccountId === 'cod') {
+      const firstAcc = shopInfo.payment_accounts?.[0]?.id || 'legacy-kpay';
+      setSelectedAccountId(firstAcc);
+    }
+  }, [shopInfo, selectedAccountId]);
+
   const handleReceiptChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        onShowToast('ပုံအရွယ်အစား အရမ်းကြီးလွန်းပါသည်၊ ကျေးဇူးပြု၍ 2MB အောက်ရှိ ပုံကို ထည့်သွင်းပေးပါခင်ဗျာ။', 'error');
+      if (file.size > 12 * 1024 * 1024) { // Increased limit since we automatically compress it!
+        onShowToast('ပုံအရွယ်အစား အရမ်းကြီးလွန်းပါသည်၊ ကျေးဇူးပြု၍ ၁၂ မက်ဂါဘိုက်ထက်ငယ်သောပုံကို ထည့်သွင်းပေးပါခင်ဗျာ။', 'error');
         return;
       }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setPaymentSlipImage(reader.result as string);
+      reader.onloadend = async () => {
+        try {
+          const rawBase64 = reader.result as string;
+          // Dynamically compress in the background for speedy saving
+          const compressed = await compressBase64Image(rawBase64);
+          setPaymentSlipImage(compressed);
+        } catch (err) {
+          setPaymentSlipImage(reader.result as string);
+        }
       };
       reader.readAsDataURL(file);
     }
   };
+
 
   const totalCartCount = Object.keys(cart).reduce((sum, key) => sum + (cart[key] || 0), 0);
 
@@ -354,20 +374,26 @@ export default function StorefrontSimulator({
                               }}
                               className="w-full bg-white border border-orange-100 rounded-xl p-2.5 text-xs outline-hidden cursor-pointer font-bold"
                             >
-                              <option value="cod">Cash on Delivery (အိမ်ရောက်ငွေချေ)</option>
+                              {((shopInfo.allowed_payment_modes || 'both') === 'both' || shopInfo.allowed_payment_modes === 'cod') && (
+                                <option value="cod">Cash on Delivery (အိမ်ရောက်ငွေချေ)</option>
+                              )}
                               
-                              {/* Dynamic payment accounts */}
-                              {(shopInfo.payment_accounts || []).map(acc => (
-                                <option key={acc.id} value={acc.id}>
-                                  {acc.provider} - {acc.account_number}
-                                </option>
-                              ))}
+                              {/* Dynamic payment accounts if both / prepay allowed */}
+                              {((shopInfo.allowed_payment_modes || 'both') === 'both' || shopInfo.allowed_payment_modes === 'prepay') && (
+                                <>
+                                  {(shopInfo.payment_accounts || []).map(acc => (
+                                    <option key={acc.id} value={acc.id}>
+                                      {acc.provider} - {acc.account_number}
+                                    </option>
+                                  ))}
 
-                              {/* Legacy backup */}
-                              {(!shopInfo.payment_accounts || shopInfo.payment_accounts.length === 0) && shopInfo.kpay_number && (
-                                <option value="legacy-kpay">
-                                  KBZPay - {shopInfo.kpay_number}
-                                </option>
+                                  {/* Legacy backup */}
+                                  {(!shopInfo.payment_accounts || shopInfo.payment_accounts.length === 0) && shopInfo.kpay_number && (
+                                    <option value="legacy-kpay">
+                                      KBZPay - {shopInfo.kpay_number}
+                                    </option>
+                                  )}
+                                </>
                               )}
                             </select>
                           </div>

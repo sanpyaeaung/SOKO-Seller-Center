@@ -13,10 +13,13 @@ import {
   doc, 
   setDoc, 
   getDoc,
-  updateDoc
+  updateDoc,
+  deleteDoc
 } from 'firebase/firestore';
 import { db, auth, OperationType, handleFirestoreError } from './firebase';
 import { Product, Order, ShopSettings, OrderItem } from './types';
+import { compressBase64Image, playNotificationSound } from './utils';
+
 
 // Components
 import LoginScreen from './components/LoginScreen';
@@ -45,7 +48,8 @@ const DEFAULT_SHOP_SETTINGS_FOR = (ownerUid: string): ShopSettings => ({
   address: 'ရန်ကုန်မြို့၊ မြန်မာနိုင်ငံ။',
   kpay_number: '09955123456',
   kpay_name: 'U Kyaw Kyaw',
-  slug: 'shwemyanmar'
+  slug: 'shwemyanmar',
+  allowed_payment_modes: 'both'
 });
 
 export default function App() {
@@ -70,6 +74,13 @@ export default function App() {
   const [showAddProductModal, setShowAddProductModal] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
+  // Global Broadcast Pop-up states
+  const [globalNoti, setGlobalNoti] = useState<{ title: string; body: string; type: string; active: boolean; updated_at?: string } | null>(null);
+  const [dismissedNotiTime, setDismissedNotiTime] = useState<string>('');
+  
+  // Multi-branch active shop state
+  const [activeShopUid, setActiveShopUid] = useState<string>('');
+
   // New Product Form State
   const [newProduct, setNewProduct] = useState({ name: '', price: '', stock_qty: '', image: '📦', category: 'စားသောက်ကုန်' });
 
@@ -79,12 +90,51 @@ export default function App() {
     setTimeout(() => setToast(null), 3000);
   };
 
+  // Global Realtime Pop-up Notification Broadcast Listener
+  useEffect(() => {
+    const unsubBroadcast = onSnapshot(doc(db, 'broadcasts', 'global'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data && data.active) {
+          setGlobalNoti({
+            title: data.title,
+            body: data.body,
+            type: data.type || 'info',
+            active: true,
+            updated_at: data.updated_at
+          });
+        } else {
+          setGlobalNoti(null);
+        }
+      } else {
+        setGlobalNoti(null);
+      }
+    }, (err) => {
+      console.error('Failed to listen to broadcast:', err);
+    });
+    return () => unsubBroadcast();
+  }, []);
+
   // 1. Listen to Auth State changes
   useEffect(() => {
+    const urlStaffShop = new URLSearchParams(window.location.search).get('staff_shop');
+    if (urlStaffShop) {
+      setCurrentUser({
+        uid: 'staff_user',
+        displayName: 'ဆိုင်ခွဲဝန်ထမ်း (Staff)',
+        email: 'staff@soko.com',
+      } as any);
+      setActiveShopUid(urlStaffShop);
+      setAuthLoading(false);
+      showToast('🏪 ဝန်ထမ်းလင့်ခ်ဖြင့် ဆိုင်ခွဲသို့ တိုက်ရိုက်ဝင်ရောက်ထားပါသည်။', 'success');
+      return;
+    }
+
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setAuthLoading(false);
       if (user) {
+        setActiveShopUid(user.uid);
         showToast(`${user.displayName || 'ရောင်းသူ'} ဝင်ရောက်မှု အောင်မြင်ပါသည်။`);
       } else {
         // Reset local data states upon signing out
@@ -92,6 +142,7 @@ export default function App() {
         setOrders([]);
         setShopSettings(null);
         setActiveTab('dashboard');
+        setActiveShopUid('');
       }
     });
     return () => unsubscribeAuth();
@@ -99,10 +150,10 @@ export default function App() {
 
   // 2. Real-time Firebase Sync logic when logged in
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !activeShopUid) return;
 
     setDbLoading(true);
-    const uid = currentUser.uid;
+    const uid = activeShopUid;
 
     // Check & Initialize Shop Settings inside Firestore if empty
     const settingsDocRef = doc(db, 'shop_settings', uid);
@@ -133,21 +184,58 @@ export default function App() {
       handleFirestoreError(error, OperationType.LIST, 'products');
     });
 
-    // Sub B: Synchronous Real-time Orders Listener (Sellers see their own orders)
+    // Sub B: Synchronous Real-time Orders Listener with sound alert & browser notification on incoming orders
     const orderQuery = query(collection(db, 'orders'), where('owner_uid', '==', uid));
+    let isInitialLoad = true;
     const unsubscribeOrders = onSnapshot(orderQuery, (snapshot) => {
       const items: Order[] = [];
+      let hasNewPendingOrder = false;
+      let incomingCustomerName = '';
+
+      // Spot newly added pending orders after initial sync
+      snapshot.docChanges().forEach((change) => {
+        if (!isInitialLoad && change.type === 'added') {
+          const ord = change.doc.data() as Order;
+          if (ord.status === 'pending') {
+            hasNewPendingOrder = true;
+            incomingCustomerName = ord.customer_name || 'ဝယ်ယူသူသစ်';
+          }
+        }
+      });
+
       snapshot.forEach((docSnap) => {
         items.push(docSnap.data() as Order);
       });
+      
       // Sort orders descending (by newest first)
       items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setOrders(items);
       setDbLoading(false);
+
+      if (hasNewPendingOrder) {
+        // Trigger optimized offline synthesizer sounds
+        playNotificationSound();
+        showToast(`🔔 အော်ဒါအသစ်ဝင်ရောက်လာပါသည် - ${incomingCustomerName} ခင်ဗျာ။`, 'success');
+
+        // Request browser alert if not already asked
+        if (typeof window !== 'undefined' && 'Notification' in window) {
+          if (Notification.permission === 'granted') {
+            new Notification('🛒 SOKO အော်ဒါအသစ် ရောက်ရှိလာပါသည်', {
+              body: `${incomingCustomerName} မှ ကုန်စည်များ မှာယူထားသဖြင့် အမြန်ဆုံး အတည်ပြုပေးပါရန်။`,
+              icon: '/icon.svg'
+            });
+          } else if (Notification.permission === 'default') {
+            Notification.requestPermission();
+          }
+        }
+      }
+
+      isInitialLoad = false;
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'orders');
       setDbLoading(false);
     });
+
 
     // Sub C: Synchronous Real-time Shop Identity Listener
     const unsubscribeSettings = onSnapshot(doc(db, 'shop_settings', uid), (docSnap) => {
@@ -163,7 +251,7 @@ export default function App() {
       unsubscribeOrders();
       unsubscribeSettings();
     };
-  }, [currentUser]);
+  }, [currentUser, activeShopUid]);
 
   // Handle errors displayed to user
   const handleAuthError = (msg: string) => {
@@ -187,7 +275,7 @@ export default function App() {
       stock_qty: parseInt(newProduct.stock_qty, 10),
       image: newProduct.image,
       category: newProduct.category,
-      owner_uid: currentUser.uid
+      owner_uid: activeShopUid || currentUser.uid
     };
 
     try {
@@ -213,6 +301,18 @@ export default function App() {
       showToast('စတော့ပြုပြင်ခြင်း မအောင်မြင်ပါ', 'error');
     }
   };
+
+  // Action: Delete custom product from store catalogue
+  const handleDeleteProduct = async (productId: string) => {
+    try {
+      await deleteDoc(doc(db, 'products', productId));
+      showToast('ထုတ်ကုန်ကို ကတ်တလောက်မှ ဖျက်သိမ်းလိုက်ပါပြီ။');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `products/${productId}`);
+      showToast('ထုတ်ကုန်ပစ္စည်းဖျက်သိမ်းခြင်း မအောင်မြင်ပါ', 'error');
+    }
+  };
+
 
   // Action: Handle Order Stage Workflow Transformations
   const handleChangeOrderStatus = async (orderId: string, newStatus: Order['status']) => {
@@ -255,10 +355,10 @@ export default function App() {
       total_amount: cartTotalPrice,
       status: 'pending',
       payment_method: paymentMethod,
-      payment_slip_image: paymentSlipImage || undefined,
-      payment_account_id: paymentAccountId || undefined,
       created_at: new Date().toISOString(),
-      owner_uid: currentUser.uid
+      owner_uid: activeShopUid || currentUser.uid,
+      ...(paymentSlipImage ? { payment_slip_image: paymentSlipImage } : {}),
+      ...(paymentAccountId ? { payment_account_id: paymentAccountId } : {})
     };
 
     try {
@@ -377,6 +477,7 @@ export default function App() {
             products={products}
             onUpdateStock={handleUpdateStockLevel}
             onOpenAddModal={() => setShowAddProductModal(true)}
+            onDeleteProduct={handleDeleteProduct}
           />
         )}
 
@@ -395,6 +496,8 @@ export default function App() {
             onSaveSettings={handleSaveShopSettings}
             onShowToast={showToast}
             user={currentUser}
+            activeShopUid={activeShopUid}
+            onChangeActiveShop={setActiveShopUid}
           />
         )}
 
@@ -460,23 +563,61 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="space-y-1">
-                  <label className="block text-slate-500 font-bold">ကုန်ပစ္စည်းပုံစံ (Emoji သို့မဟုတ် Image URL) *</label>
-                  <input 
-                    type="text" 
-                    required
-                    value={newProduct.image}
-                    onChange={e => setNewProduct({ ...newProduct, image: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-800 focus:bg-white outline-hidden font-bold"
-                    placeholder="📦 သို့မဟုတ် https://pics.com/pic.jpg"
-                  />
-                  <span className="text-[9.5px] text-zinc-400 block pt-0.5 leading-none">အီမိုဂျီ သို့မဟုတ် အင်တာနက် ပုံလင့်ခ် ရေးသွင်းနိုင်ပါသည်</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 border-t border-slate-100 pt-3.5">
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="block text-slate-700 font-extrabold text-[11px] mb-1">📸 ကုန်ပစ္စည်းဓါတ်ပုံ တိုက်ရိုက်ရွေးချယ်တင်သွင်းရန် *</label>
+                  <div className="flex items-center gap-3">
+                    {newProduct.image && (newProduct.image.startsWith('data:image/') || newProduct.image.startsWith('http')) ? (
+                      <div className="relative w-16 h-16 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs flex-shrink-0">
+                        <img src={newProduct.image} className="w-full h-full object-cover" alt="ကုန်စည်ပုံအစမ်းကြည့်" />
+                        <button
+                          type="button"
+                          onClick={() => setNewProduct({ ...newProduct, image: '📦' })}
+                          className="absolute -top-0.5 -right-0.5 w-4.5 h-4.5 bg-rose-600 text-white rounded-full text-[9px] flex items-center justify-center font-black cursor-pointer shadow-sm"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-16 h-16 bg-orange-100/35 border border-dashed border-orange-200 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 select-none">
+                        {newProduct.image || '📦'}
+                      </div>
+                    )}
+
+                    <div className="flex-1">
+                      <label className="block w-full bg-slate-50 hover:bg-orange-50/50 border border-slate-200 hover:border-orange-200 rounded-xl px-3 py-2 cursor-pointer text-center text-[11px] transition shadow-3xs active:scale-95 font-bold text-slate-705">
+                        📁 ဓါတ်ပုံရွေးချယ်ရန်
+                        <input 
+                          type="file" 
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              if (file.size > 8 * 1024 * 1024) {
+                                showToast('အလွန်ကြီးမားသောပုံဖြစ်နေပါသည်။ 8MB ထက်ငယ်သောပုံများသာ ရွေးချယ်နိုင်ပါသည်', 'error');
+                                return;
+                              }
+                              const reader = new FileReader();
+                              reader.onloadend = async () => {
+                                const compressedImg = await compressBase64Image(reader.result as string);
+                                setNewProduct({ ...newProduct, image: compressedImg });
+                                showToast('ပုံအား အောင်မြင်စွာ ထည့်သွင်းပြီးပါပြီ။');
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                          className="hidden" 
+                        />
+                      </label>
+                      <p className="text-[9px] text-zinc-400 leading-tight mt-1">အလိုအလျောက် သင့်လျော်သောအရွယ်အစားသို့ ကျုံ့ပေးပါမည်။</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="block text-slate-500 font-bold">အမြန်ရွေးရန် အီမိုဂျီများ</label>
-                  <div className="flex flex-wrap gap-1.5 p-1.5 bg-slate-50 border border-slate-200 rounded-xl text-lg h-[46px] overflow-y-auto items-center">
-                    {['📦', '☕', '🍜', '👕', '🍯', '👜', '🧴'].map(emo => (
+
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="block text-slate-500 font-bold">သို့မဟုတ် အီမိုဂျီ အမြန်ရွေးချယ်ရန်</label>
+                  <div className="flex flex-wrap gap-1.5 p-2 bg-slate-50 border border-slate-200 rounded-xl text-lg items-center max-h-[70px] overflow-y-auto">
+                    {['📦', '☕', '🍜', '👕', '🍯', '👜', '🧴', '👗', '👟', '🍉', '🌾'].map(emo => (
                       <button
                         key={emo}
                         type="button"
@@ -488,6 +629,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+
                 <div className="space-y-1 sm:col-span-2">
                   <label className="block text-slate-500 font-bold">အမျိုးအစား</label>
                   <select 
@@ -611,6 +753,63 @@ export default function App() {
                 className="flex-1 bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs py-2 rounded-xl cursor-pointer transition"
               >
                 💾 သိမ်းဆည်းရန်
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* Real-time Global Pop-up Notification Broadcast Modal UI */}
+      {globalNoti && globalNoti.active && dismissedNotiTime !== globalNoti.updated_at && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-fade-in">
+          <div className={`bg-white border-2 max-w-lg w-full rounded-3xl p-6.5 space-y-5 shadow-2xl relative ${
+            globalNoti.type === 'danger' 
+              ? 'border-rose-300' 
+              : globalNoti.type === 'warning' 
+              ? 'border-amber-300' 
+              : globalNoti.type === 'success' 
+              ? 'border-emerald-300' 
+              : 'border-indigo-300'
+          }`}>
+            
+            <div className="flex items-start gap-3.5">
+              <span className="text-3xl mt-0.5">
+                {globalNoti.type === 'danger' ? '🚨' : globalNoti.type === 'warning' ? '⚠️' : globalNoti.type === 'success' ? '🎉' : '📢'}
+              </span>
+              <div className="space-y-1.5 flex-1">
+                <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
+                  SOKO System Notification
+                </span>
+                <h3 className="font-extrabold text-slate-900 text-sm leading-snug">
+                  {globalNoti.title}
+                </h3>
+                <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">
+                  {globalNoti.body}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-3 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  if (globalNoti.updated_at) {
+                    setDismissedNotiTime(globalNoti.updated_at);
+                  } else {
+                    setDismissedNotiTime('done');
+                  }
+                }}
+                className={`px-6 py-2.5 rounded-xl text-xs font-black cursor-pointer transition active:scale-95 shadow-md ${
+                  globalNoti.type === 'danger'
+                    ? 'bg-rose-600 hover:bg-rose-750 text-white'
+                    : globalNoti.type === 'warning'
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
+                    : globalNoti.type === 'success'
+                    ? 'bg-emerald-600 hover:bg-emerald-750 text-white'
+                    : 'bg-indigo-600 hover:bg-indigo-750 text-white'
+                }`}
+              >
+                နားလည်ပါပြီ (OK)
               </button>
             </div>
 

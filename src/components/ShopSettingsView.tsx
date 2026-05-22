@@ -1,23 +1,139 @@
 import React, { useState, useEffect } from 'react';
 import { User, signOut } from 'firebase/auth';
-import { auth } from '../firebase';
+import { auth, db } from '../firebase';
 import { ShopSettings } from '../types';
+import { collection, query, where, getDocs, setDoc, doc } from 'firebase/firestore';
 
 interface ShopSettingsViewProps {
   settings: ShopSettings;
   onSaveSettings: (updated: ShopSettings) => Promise<void>;
   onShowToast: (msg: string, type?: 'success' | 'error') => void;
   user: User;
+  activeShopUid: string;
+  onChangeActiveShop: (uid: string) => void;
 }
 
 export default function ShopSettingsView({
   settings,
   onSaveSettings,
   onShowToast,
-  user
+  user,
+  activeShopUid,
+  onChangeActiveShop
 }: ShopSettingsViewProps) {
   const [localSettings, setLocalSettings] = useState<ShopSettings>({ ...settings });
   const [loading, setLoading] = useState(false);
+
+  const [branches, setBranches] = useState<any[]>([]);
+  const [loadingBranches, setLoadingBranches] = useState(false);
+  
+  // New branch form state
+  const [newBranchName, setNewBranchName] = useState('');
+  const [newBranchSlug, setNewBranchSlug] = useState('');
+  const [newBranchPhone, setNewBranchPhone] = useState('');
+  const [newBranchAddress, setNewBranchAddress] = useState('');
+  const [branchSubmitting, setBranchSubmitting] = useState(false);
+
+  // Suggestions state
+  const [suggestionText, setSuggestionText] = useState('');
+  const [sugSubmitting, setSugSubmitting] = useState(false);
+
+  // Load branches from Firestore
+  const loadBranches = async () => {
+    if (!user) return;
+    setLoadingBranches(true);
+    try {
+      const q = query(
+        collection(db, 'shop_settings'),
+        where('parent_uid', '==', user.uid)
+      );
+      const snap = await getDocs(q);
+      const list: any[] = [];
+      snap.forEach(d => {
+        list.push({ id: d.id, ...d.data() });
+      });
+      setBranches(list);
+    } catch (err) {
+      console.error('Error fetching branches:', err);
+    } finally {
+      setLoadingBranches(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBranches();
+  }, [user]);
+
+  // Branch creation
+  const handleCreateBranch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const isBranchOrStaffMode = (user.uid === 'staff_user') || (activeShopUid !== user.uid) || (!!settings.parent_uid);
+    if (isBranchOrStaffMode) {
+      onShowToast('⚠️ ဆိုင်ခွဲလင့်ခ်မှ ဆိုင်ခွဲသစ်တိုးချဲ့ခွင့် မရှိပါခင်ဗျာ။', 'error');
+      return;
+    }
+    if (!newBranchName || !newBranchSlug) {
+      onShowToast('ဆိုင်ခွဲအမည်နှင့် လိပ်စာအကြို ဖြည့်စွက်ပေးပါရန်', 'error');
+      return;
+    }
+    setBranchSubmitting(true);
+    try {
+      const newUid = `${user.uid}_branch_${Date.now()}`;
+      const sanitizedSlug = newBranchSlug.toLowerCase().replace(/[^a-z0-9_]/g, '');
+      
+      const newBranchDoc: ShopSettings = {
+        owner_uid: newUid,
+        parent_uid: user.uid,
+        name: newBranchName,
+        phone: newBranchPhone || settings.phone || '',
+        address: newBranchAddress || settings.address || '',
+        kpay_name: settings.kpay_name || '',
+        kpay_number: settings.kpay_number || '',
+        payment_accounts: settings.payment_accounts || [],
+        slug: sanitizedSlug
+      };
+
+      await setDoc(doc(db, 'shop_settings', newUid), newBranchDoc);
+      onShowToast(`🏪 ဆိုင်ခွဲအသစ် "${newBranchName}" အား အောင်မြင်စွာ တိုးချဲ့ပြီးပါပြီ။`);
+      setNewBranchName('');
+      setNewBranchSlug('');
+      setNewBranchPhone('');
+      setNewBranchAddress('');
+      loadBranches();
+    } catch (err) {
+      console.error(err);
+      onShowToast('ဆိုင်ခွဲတိုးချဲ့မှု မအောင်မြင်ပါ၊ slug လိပ်စာထပ်နေခြင်း ရှိမရှိ စစ်ဆေးပေးပါ', 'error');
+    } finally {
+      setBranchSubmitting(false);
+    }
+  };
+
+  // Feedback/Suggestion Submission
+  const handleSubmitSuggestion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!suggestionText.trim()) {
+      onShowToast('အကြံပြုချက် စာသားရေးသားပေးပါခင်ဗျာ။', 'error');
+      return;
+    }
+    setSugSubmitting(true);
+    try {
+      const suggestionId = 'SUG-' + Date.now();
+      await setDoc(doc(db, 'suggestions', suggestionId), {
+        id: suggestionId,
+        sender_name: user.displayName || settings.name || 'SOKO လုပ်ငန်းရှင်',
+        sender_email: user.email || 'N/A',
+        content: suggestionText,
+        created_at: new Date().toISOString()
+      });
+      onShowToast('💬 အချက်အလက်များကို Admin Panel ထံ တိုက်ရိုက်တင်ပြလိုက်ပါပြီ။ ကျေးဇူးတင်ရှိပါသည်!');
+      setSuggestionText('');
+    } catch (err) {
+      console.error(err);
+      onShowToast('အကြံပြုချက်တင်သွင်းမှု မအောင်မြင်ပါ', 'error');
+    } finally {
+      setSugSubmitting(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -159,6 +275,54 @@ export default function ShopSettingsView({
               placeholder="တိုက်နံပါတ်၊ မြို့နယ်၊ တိုင်းဒေသကြီး"
             />
           </div>
+
+          {/* Allowed Payment Modes Selection */}
+          <div className="space-y-2 sm:col-span-2 border-t border-orange-50 pt-4">
+            <label className="block text-[#8A4A00] font-black text-xs">💸 ဆိုင်တွင် လက်ခံမည့် ငွေချေစနစ် ရွေးချယ်ရန် (Payment Settings) *</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setLocalSettings({ ...localSettings, allowed_payment_modes: 'both' })}
+                className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 text-center transition cursor-pointer active:scale-95 ${
+                  (localSettings.allowed_payment_modes || 'both') === 'both'
+                    ? 'border-orange-500 bg-orange-50/25 text-orange-600 shadow-2xs'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <span className="text-lg">🔄</span>
+                <span className="font-extrabold text-[10.5px] mt-1">နှစ်မျိုးလုံး ခွင့်ပြုမည်</span>
+                <span className="text-[9px] text-zinc-400 font-bold leading-none mt-0.5">(COD & Prepay)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLocalSettings({ ...localSettings, allowed_payment_modes: 'cod' })}
+                className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 text-center transition cursor-pointer active:scale-95 ${
+                  localSettings.allowed_payment_modes === 'cod'
+                    ? 'border-orange-500 bg-orange-50/25 text-orange-600 shadow-2xs'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <span className="text-lg">🚚</span>
+                <span className="font-extrabold text-[10.5px] mt-1">COD (အိမ်အရောက်ရှင်း)</span>
+                <span className="text-[9px] text-zinc-400 font-bold leading-none mt-0.5">(Cash On Delivery)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLocalSettings({ ...localSettings, allowed_payment_modes: 'prepay' })}
+                className={`flex flex-col items-center justify-center p-3 rounded-2xl border-2 text-center transition cursor-pointer active:scale-95 ${
+                  localSettings.allowed_payment_modes === 'prepay'
+                    ? 'border-orange-500 bg-orange-50/25 text-orange-600 shadow-2xs'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                <span className="text-lg">💳</span>
+                <span className="font-extrabold text-[10.5px] mt-1">မိုဘိုင်းလ်ဘဏ်/Wallet သာ</span>
+                <span className="text-[9px] text-zinc-400 font-bold leading-none mt-0.5">(Pre-paid Mobile)</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Upgraded Payment Accounts Manage Section */}
@@ -277,6 +441,245 @@ export default function ShopSettingsView({
 
       </form>
 
+      {/* 🏪 MULTI-BRANCH MANAGEMENT & SWITCHER CONTEXT */}
+      <div className="border-t border-orange-100 pt-6 space-y-4">
+        <div className="flex justify-between items-center flex-wrap gap-2">
+          <div>
+            <h4 className="font-black text-[#8A4A00] text-sm uppercase tracking-wide flex items-center gap-1.5">
+              <span>🏪 ဆိုင်ခွဲများ တည်ထောင်ခြင်းနှင့် ကူးပြောင်းစီမံခြင်း (Branch Switching Hub)</span>
+            </h4>
+            <p className="text-[10px] text-zinc-500 font-bold font-sans">ပင်မဆိုင်ကြီးမှတဆင့် ဆိုင်ခွဲလုပ်ငန်းများကို စီမံခွဲခြားကာ လုပ်ငန်းခွင်တစ်ခုချင်းစီကို ပြောင်းလဲ ကိုင်တွယ်နိုင်သည်</p>
+          </div>
+
+          <span className="text-[10.5px] bg-slate-100 text-slate-800 px-3 py-1 rounded-full font-extrabold border border-slate-200 font-mono">
+            Active: {activeShopUid === user.uid ? 'Main Store' : 'Branch Context'}
+          </span>
+        </div>
+
+        {/* Existing active workspaces grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Main workspace */}
+          <div className={`p-4.5 rounded-2xl border-2 transition-all text-left space-y-2.5 ${
+            activeShopUid === user.uid 
+              ? 'bg-orange-50/40 border-orange-355 shadow-xs' 
+              : 'bg-white border-slate-100 hover:border-slate-200'
+          }`}>
+            <div className="flex justify-between items-start gap-2">
+              <div className="space-y-0.5">
+                <span className="text-[8px] bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-black uppercase tracking-wider font-mono">Main</span>
+                <h5 className="font-black text-xs text-slate-900 pt-1">🏪 {settings.name}</h5>
+                <p className="text-[10px] text-orange-600 font-mono font-bold font-sans">soko.to/{settings.slug}</p>
+                <p className="text-[10px] text-zinc-400 font-medium truncate max-w-xs">{settings.address || 'Address: N/A'}</p>
+              </div>
+
+              {activeShopUid === user.uid ? (
+                <span className="text-[9px] bg-orange-500 text-white font-black px-2.5 py-1 rounded-full select-none shadow-3xs animate-fade-in">
+                  လက်ရှိသုံးနေသည်
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChangeActiveShop(user.uid);
+                    onShowToast('🔄 ပင်မဆိုင်ကြီး လုပ်ငန်းခွင်သို့ အောင်မြင်စွာ ကူးပြောင်းပြီးပါပြီ။', 'success');
+                  }}
+                  className="bg-slate-150 hover:bg-orange-50 text-slate-700 hover:text-orange-600 text-[10px] font-black px-3.5 py-1.5 rounded-lg active:scale-95 transition cursor-pointer border border-slate-200"
+                >
+                  ပြောင်းမည်
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Sub workspaces */}
+          {branches.map(b => {
+            const staffUrl = `${window.location.origin}/?staff_shop=${b.owner_uid}`;
+            return (
+              <div key={b.owner_uid} className={`p-4.5 rounded-2xl border-2 transition-all text-left space-y-2.5 ${
+                activeShopUid === b.owner_uid 
+                  ? 'bg-orange-50/40 border-orange-355 shadow-xs' 
+                  : 'bg-white border-slate-100 hover:border-slate-250'
+              }`}>
+                <div className="flex justify-between items-start gap-2">
+                  <div className="space-y-0.5 flex-1">
+                    <span className="text-[8px] bg-[#1e293b] text-white px-2 py-0.5 rounded-full font-black uppercase tracking-wider font-mono">Branch</span>
+                    <h5 className="font-black text-xs text-slate-900 pt-1">🏪 {b.name}</h5>
+                    <p className="text-[10px] text-slate-500 font-mono font-bold font-sans">soko.to/{b.slug}</p>
+                    <p className="text-[10px] text-zinc-400 font-medium truncate max-w-xs">{b.address || 'Address: N/A'}</p>
+                  </div>
+
+                  {activeShopUid === b.owner_uid ? (
+                    <span className="text-[9px] bg-orange-500 text-white font-black px-2.5 py-1 rounded-full select-none shadow-3xs animate-fade-in">
+                      လက်ရှိသုံးနေသည်
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChangeActiveShop(b.owner_uid);
+                        onShowToast(`🔄 ဆိုင်ခွဲ "${b.name}" သို့ အောင်မြင်စွာ ကူးပြောင်းပြီးပါပြီ။`, 'success');
+                      }}
+                      className="bg-slate-150 hover:bg-orange-50 text-slate-700 hover:text-orange-600 text-[10px] font-black px-3.5 py-1.5 rounded-lg active:scale-95 transition cursor-pointer border border-slate-200 flex-shrink-0"
+                    >
+                      ပြောင်းမည်
+                    </button>
+                  )}
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 mt-1 space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] text-slate-650 font-black">🔑 ဝန်ထမ်းသီးသန့် လင့်ခ် (Staff Link)</span>
+                    <a
+                      href={staffUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-orange-600 hover:text-orange-700 font-bold text-[9px] hover:underline"
+                    >
+                      🔗 လင့်ခ်ဖွင့်မည် (Open)
+                    </a>
+                  </div>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      readOnly
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                      value={staffUrl}
+                      className="text-[9px] bg-slate-50 border border-slate-200 rounded-lg p-1.5 px-2.5 font-mono text-slate-500 flex-1 select-all focus:outline-hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(staffUrl);
+                        onShowToast('📋 ဝန်ထမ်းလင့်ခ်ကို Clipboard သို့ ကူးယူပြီးပါပြီ။', 'success');
+                      }}
+                      className="bg-[#FFF8F0] hover:bg-orange-50 text-orange-600 border border-orange-200 text-[9px] font-black px-2.5 py-1.5 rounded-lg cursor-pointer transition active:scale-95 flex-shrink-0"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Create new branch expansion panel */}
+        {((user.uid === 'staff_user') || (activeShopUid !== user.uid) || (!!settings.parent_uid)) ? (
+          <div className="p-5.5 bg-amber-50/50 rounded-2.5xl border border-dashed border-amber-200 text-amber-900 space-y-3.5 text-center">
+            <span className="text-3xl select-none inline-block animate-bounce mt-1">⚠️</span>
+            <h5 className="text-[11px] font-black text-amber-950 uppercase tracking-wide">ဆိုင်ခွဲလင့်ခ်မှ ဆိုင်ခွဲသစ်ထပ်မံဖွင့်လှစ်ခွင့် မရှိပါ</h5>
+            <p className="text-[10px] text-amber-850 font-bold max-w-sm mx-auto leading-relaxed">
+              လူကြီးမင်းသည် လက်ရှိတွင် ဆိုင်ခွဲလင့်ခ် (သို့မဟုတ်) ဆိုင်ခွဲအလုပ်ခွင်ထဲသို့ ဝင်ရောက်နေခြင်းဖြစ်သောကြောင့် ဆိုင်ခွဲအောက်တွင် ဆိုင်ခွဲထပ်မံတိုးချဲ့ဖွင့်လှစ်ခွင့် (Create sub-branch) မရှိပါခင်ဗျာ။ ပင်မဆိုင်ရှင်အကောင့် (Main Store) စာမျက်နှာတွင်သာ ဆိုင်ခွဲသစ်များကို Сီမံတိုးချဲ့နိုင်ပါမည်။
+            </p>
+          </div>
+        ) : (
+          <div className="p-5.5 bg-slate-50 rounded-2.5xl border border-slate-200 text-slate-800 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">➕</span>
+              <div>
+                <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-wide">တိုးချဲ့ဆိုင်ခွဲအသစ် ဖွင့်လှစ်ရန်ပုံစံ (Add New Branch Store)</h5>
+                <p className="text-[9px] text-zinc-400 font-bold">ပင်မဆိုင်ကြီး၏ ငွေကိုင်စနစ်များနှင့် ဘဏ်အကောင့်များကို အလိုအလျောက်ကူးယူပေးပါမည်။</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateBranch} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] font-black text-slate-700 block">🏪 ဆိုင်ခွဲအမည် (Branch Name)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ဥပမာ- ရန်ကင်းဆိုင်ခွဲ / တာမွေဆိုင်ခွဲ"
+                  value={newBranchName}
+                  onChange={e => setNewBranchName(e.target.value)}
+                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-orange-400"
+                />
+              </div>
+
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] font-black text-slate-700 block">🔗 ဆိုင်ခွဲ slug လိပ်စာ (soko.to/yourslug)</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="ဥပမာ - myanmarsushi-ygn"
+                  value={newBranchSlug}
+                  onChange={e => setNewBranchSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white font-mono focus:outline-none focus:border-orange-400"
+                />
+              </div>
+
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] font-black text-slate-700 block">📞 ဆိုင်ခွဲဆက်သွယ်ရန်ဖုန်း (Branch Phone)</label>
+                <input
+                  type="text"
+                  placeholder="ဥပမာ - ၀၉၁၂၃၄၅၆၇၈၉ (ချန်ထားက ပင်မဆိုင်ဖုန်းသုံးမည်)"
+                  value={newBranchPhone}
+                  onChange={e => setNewBranchPhone(e.target.value)}
+                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-orange-400"
+                />
+              </div>
+
+              <div className="space-y-1.5 text-left">
+                <label className="text-[10px] font-black text-slate-700 block">📍 ဆိုင်ခွဲလိပ်စာ (Branch Physical Address)</label>
+                <input
+                  type="text"
+                  placeholder="ဥပမာ - အမှတ် (၈)၊ ကမ္ဘာအေးဘုရားလမ်း..."
+                  value={newBranchAddress}
+                  onChange={e => setNewBranchAddress(e.target.value)}
+                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-orange-400"
+                />
+              </div>
+
+              <div className="sm:col-span-2 flex justify-end pt-2">
+                <button
+                  type="submit"
+                  disabled={branchSubmitting}
+                  className="bg-slate-800 text-white font-black text-xs px-5 py-2.5 rounded-xl transition cursor-pointer hover:bg-slate-900 active:scale-95 shadow-xs disabled:bg-slate-400"
+                >
+                  {branchSubmitting ? 'ဆိုင်ခွဲတည်ဆောက်နေပါသည်...' : '🏪 ဆိုင်ခွဲ သစ်တိုးချဲ့ဖွင့်မည် (Create Branch)'}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+      </div>
+
+
+
+      {/* 💬 DIRECT SUGGESTIONS SUBMISSION TO SOKO SYSTEM ADMIN */}
+      <div className="border-t border-orange-100 pt-6 space-y-4">
+        <h4 className="font-black text-[#8A4A00] text-sm uppercase tracking-wide flex items-center gap-1.5">
+          <span>💬 SOKO အက်ဒမင်ထံသို့ တိုက်ရိုက် အကြံပြုချက်စာသားများ တင်ပြရန် (Developer Suggestion Box)</span>
+        </h4>
+
+        <div className="bg-white p-5.5 rounded-3xl border border-slate-200.5 text-left text-slate-800 space-y-4">
+          <p className="text-xs text-slate-600 leading-normal font-semibold">
+            လုပ်ငန်းသုံးစွဲရာတွင် တွေ့ကြုံရသော အတွေ့အကြုံများ၊ လိုအပ်ချက်များ သို့မဟုတ် Feature သစ် တောင်းဆိုချက်များကို ဤနေရာမှ တိုက်ရိုက်ရေးသားပေးပို့ပါက Developer စူပါအက်ဒမင်များထံ စက္ကန့်ပိုင်းအတွင်း တိုက်ရိုက် ရောက်ရှိပြသမည် ဖြစ်ပါသည်။
+          </p>
+
+          <form onSubmit={handleSubmitSuggestion} className="space-y-4">
+            <textarea
+              required
+              rows={3}
+              value={suggestionText}
+              onChange={e => setSuggestionText(e.target.value)}
+              placeholder="သင်၏ တုံ့ပြန်အကြံပြုချက်များနှင့် တောင်းဆိုမှုများကို အသေးစိတ် ဤနေရာတွင် ရေးသားပါ..."
+              className="w-full text-xs font-semibold p-4 border border-slate-300 rounded-2xl focus:outline-none focus:border-orange-500 bg-white"
+            />
+
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={sugSubmitting}
+                className="bg-slate-900 hover:bg-slate-950 text-white font-black text-xs px-5 py-2.5 rounded-xl transition cursor-pointer active:scale-95 shadow-xs disabled:bg-slate-400 flex items-center gap-2"
+              >
+                <span>💬 Idea တင်ပြမည် (Submit Suggestion)</span>
+                {sugSubmitting && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+
       {/* Connected Account & Account Session Controls (Req Alignment: Google Connection & Logout inside settings) */}
       <div className="border-t border-orange-100 pt-5 space-y-3 font-semibold text-slate-700">
         <h4 className="font-black text-[#8A4A00] text-xs uppercase tracking-wide flex items-center gap-1.5">
@@ -319,6 +722,7 @@ export default function ShopSettingsView({
           </button>
         </div>
       </div>
+
     </div>
   );
 }

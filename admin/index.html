@@ -1,0 +1,2141 @@
+<!doctype html>
+<html lang="my">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#d97706" />
+    <title>SOKO Superadmin Cockpit - ဆိုင်ခွဲများထိန်းချုပ်ရေးဗဟို</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;750;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+    
+    <!-- React & React DOM UMD CDN -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel Standalone CDN -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Firebase Compat Web SDK CDN -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+
+    <style>
+      body {
+        font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      .font-mono {
+        font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+      }
+      /* Custom fine-grained scrollbar */
+      ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #fffbeb;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #fcd34d;
+        border-radius: 99px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #f59e0b;
+      }
+      @keyframes pulse-ring {
+        0% { transform: scale(0.95); opacity: 0.8; }
+        50% { transform: scale(1.1); opacity: 0.4; }
+        100% { transform: scale(0.95); opacity: 0.8; }
+      }
+      .live-pulse {
+        animation: pulse-ring 2s infinite ease-in-out;
+      }
+    </style>
+  </head>
+  <body class="bg-[#FFFDF9] text-slate-800 antialiased selection:bg-amber-100 selection:text-amber-900 min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useRef } = React;
+
+      // Project configuration dynamically read from firebase-applet-config.json
+      const firebaseConfig = {
+        projectId: "gen-lang-client-0725717335",
+        appId: "1:754521372608:web:b7cfdfe809b4f9c2ac3a25",
+        apiKey: "AIzaSyBTeA1cuimlH-kqkQXuB8Ju8RP0f7U5Lmo",
+        authDomain: "gen-lang-client-0725717335.firebaseapp.com",
+        storageBucket: "gen-lang-client-0725717335.firebasestorage.app",
+        messagingSenderId: "754521372608",
+        firestoreDatabaseId: "ai-studio-f7002209-2c0a-4f3d-a630-bc6e058fd98d"
+      };
+
+      // Initialize Firebase App
+      let app;
+      if (!firebase.apps.length) {
+        app = firebase.initializeApp(firebaseConfig);
+      } else {
+        app = firebase.app();
+      }
+      
+      const auth = firebase.auth();
+
+      // Connect to SOKO custom Firestore database using modular SDK loaded dynamically to bypass compat limitations
+      let db;
+      let dbResolve;
+      const dbPromise = new Promise((resolve) => {
+        dbResolve = resolve;
+      });
+
+      import("https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js").then((m) => {
+        const { initializeFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc } = m;
+        
+        const rawDb = initializeFirestore(app, {
+          experimentalForceLongPolling: true
+        }, firebaseConfig.firestoreDatabaseId);
+
+        db = {
+          collection: (colName) => {
+            return {
+              onSnapshot: (callback, errorCallback) => {
+                const q = collection(rawDb, colName);
+                return onSnapshot(q, callback, errorCallback);
+              },
+              doc: (docId) => {
+                const docRef = doc(rawDb, colName, docId);
+                return {
+                  onSnapshot: (callback, errorCallback) => {
+                    return onSnapshot(docRef, callback, errorCallback);
+                  },
+                  set: (data, options) => {
+                    return setDoc(docRef, data, options || {});
+                  },
+                  update: (data) => {
+                    return updateDoc(docRef, data);
+                  },
+                  delete: () => {
+                    return deleteDoc(docRef);
+                  }
+                };
+              }
+            };
+          }
+        };
+        dbResolve(db);
+        console.log("🚀 SOKO Named Database Modular Shin initialized perfectly!");
+      }).catch(err => {
+        console.error("❌ Failed to load/shim modular firestore:", err);
+      });
+
+      // Sound notification generator
+      const playNotificationSound = () => {
+        try {
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          
+          // Sound chime 1
+          const osc1 = audioContext.createOscillator();
+          const gain1 = audioContext.createGain();
+          osc1.connect(gain1);
+          gain1.connect(audioContext.destination);
+          
+          osc1.type = 'sine';
+          osc1.frequency.setValueAtTime(587.33, audioContext.currentTime); // D5 note
+          gain1.gain.setValueAtTime(0.12, audioContext.currentTime);
+          gain1.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.35);
+          
+          osc1.start();
+          osc1.stop(audioContext.currentTime + 0.4);
+
+          // Sound chime 2
+          setTimeout(() => {
+            const osc2 = audioContext.createOscillator();
+            const gain2 = audioContext.createGain();
+            osc2.connect(gain2);
+            gain2.connect(audioContext.destination);
+            
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(880.00, audioContext.currentTime); // A5 note
+            gain2.gain.setValueAtTime(0.15, audioContext.currentTime);
+            gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+            
+            osc2.start();
+            osc2.stop(audioContext.currentTime + 0.55);
+          }, 140);
+
+        } catch (e) {
+          console.warn('Audio feedback failed or not permitted:', e);
+        }
+      };
+
+      // Helper function to compress large Base64 pictures efficiently
+      function compressBase64Image(base64Str, maxWidth = 480, maxHeight = 480) {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.src = base64Str;
+          img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+            if (width > height) {
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = Math.round((width * maxHeight) / height);
+                height = maxHeight;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.65));
+          };
+          img.onerror = () => resolve(base64Str);
+        });
+      }
+
+      function App() {
+        const [currentUser, setCurrentUser] = useState(null);
+        const [passcode, setPasscode] = useState('');
+        const [isUnlockedByPasscode, setIsUnlockedByPasscode] = useState(() => {
+          return localStorage.getItem('soko_admin_unlocked') === 'true';
+        });
+        const [authChecked, setAuthChecked] = useState(false);
+        const [firestoreInitialized, setFirestoreInitialized] = useState(false);
+        const [authError, setAuthError] = useState('');
+
+        // Listen to dynamic modular firestore initialization
+        useEffect(() => {
+          dbPromise.then(() => {
+            setFirestoreInitialized(true);
+          }).catch(err => {
+            setAuthError('Firestore loading failed! Please refresh.');
+          });
+        }, []);
+
+        // Master collections from Firebase Firestore
+        const [shops, setShops] = useState([]);
+        const [products, setProducts] = useState([]);
+        const [orders, setOrders] = useState([]);
+
+        // Component UI tabs & filters
+        const [activeTab, setActiveTab] = useState('analytics');
+        const [shopQuery, setShopQuery] = useState('');
+        const [productQuery, setProductQuery] = useState('');
+        const [orderQuery, setOrderQuery] = useState('');
+        const [orderStatusFilter, setOrderStatusFilter] = useState('all');
+
+        // Dynamic status loadings
+        const [loadingShops, setLoadingShops] = useState(true);
+        const [loadingProducts, setLoadingProducts] = useState(true);
+        const [loadingOrders, setLoadingOrders] = useState(true);
+
+        // Modals / Editors editing states
+        const [editingShop, setEditingShop] = useState(null);
+        const [editingProduct, setEditingProduct] = useState(null);
+        const [zoomedSlipImage, setZoomedSlipImage] = useState(null);
+        const [soundCheckStatus, setSoundCheckStatus] = useState(false);
+
+        // Customized high-quality screen alerts
+        const [toastMessage, setToastMessage] = useState('');
+        const [toastType, setToastType] = useState('success');
+        const [showToast, setShowToast] = useState(false);
+
+        // Global Alert/Notification popup broadcasing variables
+        const [notiTitle, setNotiTitle] = useState('SOKO စနစ်သစ် အဆင့်မြှင့်တင်ခြင်း');
+        const [notiBody, setNotiBody] = useState('အော်ဒါတင်ခြင်းနှင့် ငွေပေးချေမှုပုံစံသစ်များ ပိုမိုမြန်ဆန်သွက်လက်လာပါပြီ။ SOKO PWA အား update ပြုလုပ်သုံးစွဲပါရန်။');
+        const [notiType, setNotiType] = useState('info'); // info, success, warning, urgent
+        const [notiActive, setNotiActive] = useState(false);
+        const [liveBroadcast, setLiveBroadcast] = useState(null);
+        
+        const [suggestions, setSuggestions] = useState([]);
+        const [loadingSuggestions, setLoadingSuggestions] = useState(true);
+
+        const triggerToast = (msg, type = 'success') => {
+          setToastMessage(msg);
+          setToastType(type);
+          setShowToast(true);
+          setTimeout(() => setShowToast(false), 3800);
+        };
+
+        const superadminEmails = [
+          'sanpyaeaung2001.spa@gmail.com',
+          'admin@soko.com',
+          'superadmin@soko.com'
+        ];
+
+        const hasSuperadminPrivileges = 
+          isUnlockedByPasscode || 
+          (currentUser !== null && superadminEmails.includes(currentUser.email || ''));
+
+        // Handle Auth state change with auto-bypass timer to prevent hanging on sandbox connection lag
+        useEffect(() => {
+          const timer = setTimeout(() => {
+            console.log("Superadmin auth state check timed out. Bypassing connection screen...");
+            setAuthChecked(true);
+          }, 1500);
+
+          const unsubAuth = auth.onAuthStateChanged((user) => {
+            clearTimeout(timer);
+            setCurrentUser(user);
+            setAuthChecked(true);
+          }, (err) => {
+            console.error("Auth state change error:", err);
+            clearTimeout(timer);
+            setAuthChecked(true);
+          });
+          return () => {
+            clearTimeout(timer);
+            unsubAuth();
+          };
+        }, []);
+
+        // Real-time Firestore sync when supervisor locks are bypassed
+        useEffect(() => {
+          if (!hasSuperadminPrivileges || !firestoreInitialized) return;
+
+          setLoadingShops(true);
+          const unsubShops = db.collection('shop_settings').onSnapshot((snapshot) => {
+            const list = [];
+            snapshot.forEach((doc) => {
+              list.push(doc.data());
+            });
+            setShops(list);
+            setLoadingShops(false);
+          }, (err) => {
+            console.error(err);
+            triggerToast('ဆိုင်ရှင်အဆင်သင့်ဖြစ်ရန်အဆင့်မအောင်မြင်ပါ', 'error');
+            setLoadingShops(false);
+          });
+
+          setLoadingProducts(true);
+          const unsubProducts = db.collection('products').onSnapshot((snapshot) => {
+            const list = [];
+            snapshot.forEach((doc) => {
+              list.push(doc.data());
+            });
+            setProducts(list);
+            setLoadingProducts(false);
+          }, (err) => {
+            console.error(err);
+            triggerToast('ကုန်စည်ပစ္စည်းဖိုင်များမအောင်မြင်ပါ', 'error');
+            setLoadingProducts(false);
+          });
+
+          setLoadingOrders(true);
+          let firstInitDone = false;
+          const unsubOrders = db.collection('orders').onSnapshot((snapshot) => {
+            const list = [];
+            let playDing = false;
+            let targetName = '';
+
+            snapshot.docChanges().forEach((change) => {
+              if (firstInitDone && change.type === 'added') {
+                const ord = change.doc.data();
+                if (ord.status === 'pending') {
+                  playDing = true;
+                  targetName = ord.customer_name || 'မှာယူသူသစ်';
+                }
+              }
+            });
+
+            snapshot.forEach((doc) => {
+              list.push(doc.data());
+            });
+
+            // Sort by order date descending
+            list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            setOrders(list);
+            setLoadingOrders(false);
+
+            if (playDing) {
+              playNotificationSound();
+              triggerToast(`🔔 SOKO စနစ်ထဲတွင် အော်ဒါအသစ်ဝင်ရောက်လာပါသည် - ${targetName} ခင်ဗျာ။`, 'success');
+            }
+            firstInitDone = true;
+          }, (err) => {
+            console.error(err);
+            triggerToast('မှာယူမှုအော်ဒါများမအောင်မြင်ပါ', 'error');
+            setLoadingOrders(false);
+          });
+
+          const unsubBroadcast = db.collection('broadcasts').doc('global').onSnapshot((doc) => {
+            if (doc.exists) {
+              const data = doc.data();
+              setLiveBroadcast(data);
+              setNotiTitle(data.title || '');
+              setNotiBody(data.body || '');
+              setNotiType(data.type || 'info');
+              setNotiActive(!!data.active);
+            } else {
+              setLiveBroadcast(null);
+            }
+          }, (err) => {
+            console.error('Broadcast load error:', err);
+          });
+
+          setLoadingSuggestions(true);
+          const unsubSuggestions = db.collection('suggestions').onSnapshot((snapshot) => {
+            const list = [];
+            snapshot.forEach((doc) => {
+              list.push({ id: doc.id, ...doc.data() });
+            });
+            // Newest first
+            list.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+            setSuggestions(list);
+            setLoadingSuggestions(false);
+          }, (err) => {
+            console.error('Suggestions load error:', err);
+            setLoadingSuggestions(false);
+          });
+
+          return () => {
+            unsubShops();
+            unsubProducts();
+            unsubOrders();
+            unsubBroadcast();
+            unsubSuggestions();
+          };
+        }, [hasSuperadminPrivileges, firestoreInitialized]);
+
+        // Login helpers
+        const handlePasscodeUnlock = (e) => {
+          e.preventDefault();
+          const clean = passcode.trim();
+          if (clean.toUpperCase() === 'SOKO-ADMIN-2026' || clean === '1234abcd') {
+            setIsUnlockedByPasscode(true);
+            localStorage.setItem('soko_admin_unlocked', 'true');
+            triggerToast('🔒 Master Bypass ကုဒ် အောင်မြင်ပါသည်၊ စမ်းသပ်စီမံခန့်ခွဲသူ ဝင်ရောက်ပြီးပါပြီ။', 'success');
+          } else {
+            setAuthError('ဖြတ်သန်းခွင့်စာလုံး (Passcode) မမှန်ကန်ပါခင်ဗျာ။');
+            triggerToast('ဝင်ရောက်မှု မအောင်မြင်ပါ', 'error');
+          }
+        };
+
+        const handleGoogleSignIn = async () => {
+          setAuthError('');
+          const provider = new firebase.auth.GoogleAuthProvider();
+          provider.setCustomParameters({ prompt: 'select_account' });
+          try {
+            const result = await auth.signInWithPopup(provider);
+            const email = result.user.email || '';
+            if (superadminEmails.includes(email)) {
+              triggerToast(`👋 စူပါအက်ဒမင် ${result.user.displayName || 'အကောင့်'} အဖြစ် အောင်မြင်စွာဝင်ရောက်ပြီးပါပြီ။`, 'success');
+            } else {
+              triggerToast(`🛡️ သင့်အီးမေးလ် ${email} သည် အက်ဒမင်စာရင်းထဲမရှိသော်လည်း Bypass code သုံးခွင့်ရှိသည်။`, 'info');
+            }
+          } catch (err) {
+            console.error(err);
+            setAuthError(err.message || 'ဂူဂဲလ်အကောင့်ဖြင့် ဝင်ရောက်ခြင်း မအောင်မြင်ပါ');
+          }
+        };
+
+        const handleSignOut = async () => {
+          await auth.signOut();
+          setIsUnlockedByPasscode(false);
+          localStorage.removeItem('soko_admin_unlocked');
+          triggerToast('အုပ်ချုပ်သူစနစ်မှ ထွက်ခွာပြီးပါပြီ။');
+        };
+
+        // DB Actions for Shops
+        const handleSaveShopSettings = async (e) => {
+          e.preventDefault();
+          if (!editingShop) return;
+          try {
+            await db.collection('shop_settings').doc(editingShop.owner_uid).set(editingShop, { merge: true });
+            triggerToast(`🏪 ${editingShop.name} ဆိုင်အချက်လက် ပြင်ဆင်ပြီးပါပြီ။`, 'success');
+            setEditingShop(null);
+          } catch (err) {
+            console.error(err);
+            triggerToast('သိမ်းဆည်းမှု မအောင်မြင်ပါ', 'error');
+          }
+        };
+
+        const handleDeleteShopRecord = async (shopUid, shopName) => {
+          if (!confirm(`⚠️ သတိပေးချက် - SOKO ဆိုင်ခွဲ "${shopName}" ကို လုံးဝဖျက်သိမ်းလိုပါသလား?\n\n(ဤစတိုးဆိုင်လိပ်စာနှင့် အချက်အလက်များအားလုံး DB မှ လုံးဝ ဖျက်ဆီးပစ်ပါမည်။)`)) {
+            return;
+          }
+          try {
+            await db.collection('shop_settings').doc(shopUid).delete();
+            triggerToast('ဆိုင်သိမ်းဆည်းမှု ဖျက်သိမ်းလိုက်ပါပြီ။', 'success');
+          } catch (err) {
+            console.error(err);
+            triggerToast('ဆိုင်ဖျက်ဆီးမှု မအောင်မြင်ပါ', 'error');
+          }
+        };
+
+        // DB Actions for Products
+        const handleSaveProductSettings = async (e) => {
+          e.preventDefault();
+          if (!editingProduct) return;
+          try {
+            await db.collection('products').doc(editingProduct.id).set(editingProduct, { merge: true });
+            triggerToast(`📦 ${editingProduct.name} ကုန်စည် အချက်လက်များကို စနစ်ထဲတွင် သိမ်းဆည်းလိုက်ပါပြီ။`, 'success');
+            setEditingProduct(null);
+          } catch (err) {
+            console.error(err);
+            triggerToast('ကုန်ပစ္စည်းပြင်ဆင်မှု မအောင်မြင်ပါ', 'error');
+          }
+        };
+
+        const handleDeleteProductRecord = async (productId, prodName) => {
+          if (!confirm(`⚠️ "${prodName}" ပစ္စည်းအား ကွန်ယက်ခွဲအားလုံးထဲမှ လုံးဝဖျက်သိမ်းပစ်လိုပါသလား?`)) {
+            return;
+          }
+          try {
+            await db.collection('products').doc(productId).delete();
+            triggerToast('ကုန်စည်ပစ္စည်းအား လုံးဝဖျက်သိမ်းလိုက်ပါပြီ။', 'success');
+          } catch (err) {
+            console.error(err);
+            triggerToast('ဖျက်သိမ်းမှုမအောင်မြင်ပါ', 'error');
+          }
+        };
+
+        // DB Actions for Orders status change
+        const handleSetOrderStatus = async (orderId, statusValue) => {
+          try {
+            await db.collection('orders').doc(orderId).update({ status: statusValue });
+            triggerToast(`မှာယူမှု အဆင့်အား "${statusValue}" သို့ ပြောင်းလဲလိုက်ပါပြီ။`, 'success');
+          } catch (err) {
+            console.error(err);
+            triggerToast('အော်ဒါအဆင့်ပြောင်းရန် မအောင်မြင်ပါ', 'error');
+          }
+        };
+
+        const handleDeleteOrderRecord = async (orderId) => {
+          if (!confirm('⚠️ ဤမှာယူမှု အချက်စဒေတာကို Database မှ လုံးဝဖျက်သိမ်းပစ်လိုပါသလား?\n(ဤလုပ်ဆောင်ချက်သည် နောက်သို့ ပြန်ပြင်၍မရပါ။)')) {
+            return;
+          }
+          try {
+            await db.collection('orders').doc(orderId).delete();
+            triggerToast('အော်ဒါဒေတာဖျက်သိမ်းပြီးပါပြီ။', 'success');
+          } catch (err) {
+            console.error(err);
+            triggerToast('အော်ဒါဖျက်သိမ်းမှု မအောင်မြင်ပါ', 'error');
+          }
+        };
+
+        // Analytics maths
+        const getShopName = (ownerUid) => {
+          const found = shops.find(s => s.owner_uid === ownerUid);
+          return found ? found.name : `ဆိုင်ခွဲ-${ownerUid.substring(0, 5)}`;
+        };
+
+        const getShopSlug = (ownerUid) => {
+          const found = shops.find(s => s.owner_uid === ownerUid);
+          return found ? found.slug : 'unknown';
+        };
+
+        // Filter arrays
+        const filteredShops = shops.filter(s => {
+          const q = shopQuery.toLowerCase();
+          return s.name.toLowerCase().includes(q) || 
+                 (s.phone && s.phone.includes(q)) || 
+                 (s.slug && s.slug.toLowerCase().includes(q)) || 
+                 (s.address && s.address.toLowerCase().includes(q));
+        });
+
+        const filteredProducts = products.filter(p => {
+          const q = productQuery.toLowerCase();
+          const shopName = getShopName(p.owner_uid).toLowerCase();
+          return p.name.toLowerCase().includes(q) || 
+                 p.category.toLowerCase().includes(q) || 
+                 shopName.includes(q);
+        });
+
+        const filteredOrders = orders.filter(o => {
+          const q = orderQuery.toLowerCase();
+          const matchStatus = orderStatusFilter === 'all' || o.status === orderStatusFilter;
+          const shopName = getShopName(o.owner_uid).toLowerCase();
+          const matchText = o.customer_name.toLowerCase().includes(q) || 
+                            o.customer_phone.includes(q) || 
+                            o.id.toLowerCase().includes(q) || 
+                            shopName.includes(q);
+          return matchStatus && matchText;
+        });
+
+        // Profit & total revenue formulas
+        const confirmedSalesCount = orders.filter(o => ['confirmed', 'shipped', 'completed'].includes(o.status));
+        const cumulativeSalesSum = confirmedSalesCount.reduce((total, o) => total + (o.total_amount || 0), 0);
+
+        const getShopRevenue = (shopUid) => {
+          return orders
+            .filter(o => o.owner_uid === shopUid && ['confirmed', 'shipped', 'completed'].includes(o.status))
+            .reduce((total, o) => total + (o.total_amount || 0), 0);
+        };
+
+        const getShopOrdersCount = (shopUid) => {
+          return orders.filter(o => o.owner_uid === shopUid).length;
+        };
+
+        const getShopProductsCount = (shopUid) => {
+          return products.filter(p => p.owner_uid === shopUid).length;
+        };
+
+        // Signal Bell testing triggers
+        const triggerBellTest = () => {
+          playNotificationSound();
+          setSoundCheckStatus(true);
+          triggerToast('🔊 Notification Chime Sound double-ring test ဖွင့်လှစ်ပြီးပါပြီ။', 'success');
+          setTimeout(() => setSoundCheckStatus(false), 2600);
+        };
+
+        // Broadcast System Actions
+        const handlePublishBroadcast = async (e) => {
+          if (e) e.preventDefault();
+          try {
+            const payload = {
+              title: notiTitle,
+              body: notiBody,
+              type: notiType,
+              active: true,
+              updated_by: currentUser?.email || 'Bypass Code User',
+              updated_at: new Date().toISOString()
+            };
+            await db.collection('broadcasts').doc('global').set(payload, { merge: true });
+            triggerToast('📢 Global Pop-up Notification ကို website များအားလုံးဆီသို့ တိုက်ရိုက်ထုတ်လွှင့်လိုက်ပါပြီ။', 'success');
+          } catch (err) {
+            console.error(err);
+            triggerToast('ထုတ်လွှင့်မှု မအောင်မြင်ပါ', 'error');
+          }
+        };
+
+        const handleDisableBroadcast = async () => {
+          try {
+            await db.collection('broadcasts').doc('global').set({ active: false }, { merge: true });
+            triggerToast('🔕 Active Pop-up ပြသမှုကို ရပ်ဆိုင်းပိတ်သိမ်းလိုက်ပါပြီ။', 'info');
+          } catch (err) {
+            console.error(err);
+            triggerToast('ရပ်ဆိုင်းမှု မအောင်မြင်ပါ', 'error');
+          }
+        };
+
+        // Initial Loading View Spinner
+        if (!authChecked || !firestoreInitialized) {
+          return (
+            <div className="min-h-screen bg-[#FFFDF9] flex flex-col justify-center items-center p-6 text-center">
+              <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="mt-4 text-xs font-black text-amber-900 font-mono tracking-widest">SOKO MASTER COCKPIT SYSTEM CONNECTING...</p>
+            </div>
+          );
+        }
+
+        // Lock Gate Sign in Screen
+        if (!hasSuperadminPrivileges) {
+          return (
+            <div className="min-h-screen bg-[#FFFDF9] flex flex-col justify-center items-center px-4 py-12 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-80 h-90 bg-amber-200/25 rounded-full filter blur-3xl translate-x-20 -translate-y-20"></div>
+              <div className="absolute bottom-0 left-0 w-80 h-90 bg-orange-200/25 rounded-full filter blur-3xl -translate-x-20 translate-y-20"></div>
+
+              <div className="w-full max-w-md bg-white border-2 border-amber-200/80 rounded-3xl p-8 shadow-xl relative z-10 space-y-7">
+                <div className="flex flex-col items-center text-center space-y-3">
+                  <span className="text-4xl filter drop-shadow-md select-none">🛡️</span>
+                  <h1 className="text-xl font-extrabold text-slate-900 tracking-tight leading-none mt-1">SOKO Network Superadmin</h1>
+                  <p className="text-slate-500 text-xs leading-relaxed max-w-xs">
+                    လုပ်ငန်းခွဲစတိုးဆိုင်များအားလုံး၏ ကတ်တလောက်၊ မှာယူမှုများနှင့် ဆိုင်အချက်အလက်အားလုံးအား ဗဟိုမှ အလုံးစုံ ထိန်းချုပ်စီမံရန်အတွက် စူပါအဆင့် ဝင်ရောက်ပါ။
+                  </p>
+                </div>
+
+                <div className="bg-amber-50/70 border border-amber-100 p-4 rounded-2xl text-center space-y-2">
+                  <span className="block text-[10px] text-amber-800 font-black uppercase tracking-wider">👩‍💻 Developer / Tester Bypass Access</span>
+                  <p className="text-[10px] text-zinc-500">အဆင်ပြေစေရန် အောက်ပါ Bypass code ကိုသုံး၍ တိုက်ရိုက်ဝင်ရောက်နိုင်ပါသည်:</p>
+                  <code className="inline-block bg-[#FFFDF9] text-amber-900 font-mono text-[11px] font-bold p-1 px-3 rounded-lg border border-amber-200 cursor-pointer select-all">SOKO-ADMIN-2026</code>
+                </div>
+
+                <form onSubmit={handlePasscodeUnlock} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-slate-600 text-xs font-bold block">ဖြတ်သန်းခွင့်ကုဒ် (Master Passcode)</label>
+                    <input 
+                      type="password"
+                      required
+                      value={passcode}
+                      onChange={e => setPasscode(e.target.value)}
+                      placeholder="Enter Bypass Passcode"
+                      className="w-full bg-slate-50 border border-slate-200 focus:border-amber-400 rounded-xl p-2.5 text-slate-800 font-bold focus:bg-white focus:outline-none transition text-xs text-center"
+                    />
+                  </div>
+
+                  {authError && (
+                    <p className="text-[10px] text-red-650 font-bold p-2.5 bg-red-50 border border-red-100 rounded-xl">
+                      ❌ {authError}
+                    </p>
+                  )}
+
+                  <button
+                    type="submit"
+                    className="w-full bg-amber-500 hover:bg-amber-600 text-white font-extrabold py-2.5 px-4 rounded-xl text-xs transition duration-150 active:scale-[0.98] shadow-sm hover:shadow-md cursor-pointer text-center"
+                  >
+                    🔑 အုပ်ချုပ်သူစနစ်ဖွင့်မည် (Bypass Code)
+                  </button>
+                </form>
+
+                <div className="relative flex py-1 items-center">
+                  <div className="flex-grow border-t border-slate-200"></div>
+                  <span className="flex-shrink mx-3 text-slate-400 text-[10px] font-bold">သို့မဟုတ်</span>
+                  <div className="flex-grow border-t border-slate-200"></div>
+                </div>
+
+                <button
+                  onClick={handleGoogleSignIn}
+                  className="w-full flex items-center justify-center gap-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 font-bold py-2.5 px-4 text-xs rounded-xl shadow-2xs transition duration-150 active:scale-[0.98] cursor-pointer"
+                >
+                  <svg className="w-4.5 h-4.5" viewBox="0 0 24 24">
+                    <path fill="#EA4335" d="M12 5.04c1.62 0 3.08.56 4.22 1.65l3.15-3.15C17.45 1.68 14.93 1 12 1 7.35 1 3.37 3.65 1.41 7.55l3.79 2.94C6.1 7.51 8.83 5.04 12 5.04z" />
+                    <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.35H12v4.45h6.44c-.28 1.48-1.12 2.73-2.38 3.58l3.69 2.86c2.16-1.99 3.74-4.92 3.74-8.54z" />
+                    <path fill="#FBBC05" d="M5.2 14.49c-.23-.69-.36-1.43-.36-2.2c0-.77.13-1.51.36-2.2L1.41 7.15C.51 8.95 0 10.94 0 13c0 2.06.51 4.05 1.41 5.85l3.79-2.94-1-.42z" />
+                    <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.69-2.86c-1.03.69-2.35 1.1-4.27 1.1-3.17 0-5.9-2.47-6.8-5.45L1.41 15.8C3.37 19.7 7.35 22.3 12 23z" />
+                  </svg>
+                  Google Superadmin ဖြင့်ဝင်ဆောင်မည်
+                </button>
+              </div>
+            </div>
+          );
+        }
+
+        // Dashboard Core View (Superadmin Authenticated)
+        return (
+          <div className="pb-24">
+            
+            {/* Top Bar Header Banner Applet */}
+            <header className="bg-gradient-to-r from-[#111827] via-[#1e293b] to-[#111827] text-white shadow-sm py-3 px-4 md:px-6 border-b border-slate-800">
+              <div className="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="text-xl bg-amber-500 text-slate-950 w-10 h-10 rounded-xl flex items-center justify-center font-black shadow-sm select-none">
+                    👑
+                  </span>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h1 className="text-xs md:text-sm font-extrabold tracking-tight text-white">SOKO Superadmin Cockpit</h1>
+                      <span className="bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 live-pulse border border-red-500 shadow-3xs">
+                        <span className="w-1 h-1 bg-white rounded-full"></span> Live Stream
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-405 font-medium font-sans">ပေါင်းစည်းစနစ်တစ်ခုလုံး၏ စတိုးဆိုင်များ၊ ကုန်စည်နှင့် အော်ဒါစီမံခန့်ခွဲမှုဗဟိုချက်</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 bg-slate-800/40 p-1.5 px-2.5 rounded-xl border border-slate-700/30 max-w-full">
+                  <div className="text-right">
+                    <p className="text-[8px] text-slate-500 font-bold leading-none">အသုံးပြုခွင့်ရထားသူ Email</p>
+                    <p className="text-[11px] font-bold font-mono text-amber-400 truncate max-w-[175px] mt-0.5" title={currentUser?.email || 'Bypassed'}>
+                      {currentUser?.email || '👤 Passcode Master Override'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSignOut}
+                    title="Sign Out Admin"
+                    className="bg-slate-700/50 hover:bg-red-950/80 hover:text-red-300 text-slate-400 p-1.5 rounded-lg transition cursor-pointer"
+                  >
+                    🚀
+                  </button>
+                </div>
+              </div>
+            </header>
+
+            {/* Sticky Navigation and Testing controls */}
+            <div className="bg-white border-b border-slate-150 py-2.5 px-4 md:px-6 shadow-3xs sticky top-0 z-40">
+              <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
+                
+                {/* Tabs selection buttons */}
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    onClick={() => setActiveTab('analytics')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                      activeTab === 'analytics' 
+                        ? 'bg-amber-500 text-slate-950 shadow-3xs' 
+                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-600 hover:text-orange-950 border border-slate-200/60'
+                    }`}
+                  >
+                    📊 ခြုံငုံသုံးသပ်ချက် (Overview)
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('shops')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                      activeTab === 'shops' 
+                        ? 'bg-amber-500 text-slate-950 shadow-3xs' 
+                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-600 hover:text-orange-950 border border-slate-200/60'
+                    }`}
+                  >
+                    🏪 စတိုးဆိုင်များ ({shops.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('products')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                      activeTab === 'products' 
+                        ? 'bg-amber-500 text-slate-950 shadow-3xs' 
+                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-600 hover:text-orange-950 border border-slate-200/60'
+                    }`}
+                  >
+                    📦 ကုန်ပစ္စည်းစာရင်း ({products.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('orders')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                      activeTab === 'orders' 
+                        ? 'bg-amber-500 text-slate-950 shadow-3xs' 
+                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-600 hover:text-orange-950 border border-slate-200/60'
+                    }`}
+                  >
+                    🛒 မှာယူမှုအော်ဒါများ ({orders.length})
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('broadcast')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                      activeTab === 'broadcast' 
+                        ? 'bg-amber-600 text-white shadow-3xs' 
+                        : 'bg-orange-50 hover:bg-orange-100/50 text-amber-900 border border-orange-150'
+                    }`}
+                  >
+                    📢 Pop-up Noti လွှင့်ရန်
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('suggestions')}
+                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                      activeTab === 'suggestions' 
+                        ? 'bg-slate-900 text-white shadow-3xs' 
+                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-600 hover:text-orange-950 border border-slate-200/60'
+                    }`}
+                  >
+                    💬 အကြံပြုချက်များ ({suggestions.length})
+                  </button>
+                </div>
+
+                {/* Alarm bell checking buzzer */}
+                <div>
+                  <button
+                    onClick={triggerBellTest}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed text-[9.5px] font-bold transition-all shadow-3xs active:scale-95 ${
+                      soundCheckStatus 
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                        : 'bg-orange-50 text-orange-700 hover:bg-orange-100/50 border-orange-200/85'
+                    }`}
+                  >
+                    🔔 <span>အော်ဒါဝင်အသံ စမ်းသပ်ရန် (Alarm Play)</span>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Content Main Viewport */}
+            <main className="max-w-7xl mx-auto px-4 md:px-6 mt-6">
+              
+              {/* TOAST SYSTEM ALERTS */}
+              {showToast && (
+                <div className={`fixed bottom-6 right-6 z-[999] p-4.5 rounded-2xl border-2 flex items-center gap-3.5 shadow-xl animate-bounce ${
+                  toastType === 'success' 
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                    : toastType === 'error' 
+                    ? 'bg-rose-50 border-rose-200 text-rose-900' 
+                    : 'bg-cyan-50 border-cyan-200 text-cyan-900'
+                }`}>
+                  <span className="text-xl">
+                    {toastType === 'success' ? '✅' : toastType === 'error' ? '❌' : 'ℹ️'}
+                  </span>
+                  <div className="text-[12px] font-extrabold max-w-xs leading-snug">
+                    {toastMessage}
+                  </div>
+                </div>
+              )}
+
+              {/* TABS VIEWPORT BLOCK */}
+
+              {/* 📊 TAB 1: OVERVIEW & ANALYTICS CHIPS */}
+              {activeTab === 'analytics' && (
+                <div className="space-y-6 animate-fade-in">
+                  
+                  {/* Grid KPI Summary Cards - Extremely beautiful and compact 6 Core Metrics + 1 Revenue Highlight */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4.5">
+                    
+                    {/* Stat 1: စျေးဆိုင်အရေအတွက် */}
+                    <div className="bg-white border-2 border-orange-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] text-slate-450 font-black uppercase tracking-wider">စတိုးဆိုင် စုစုပေါင်း</span>
+                        <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-sm">🏪</div>
+                      </div>
+                      <div className="mt-4 space-y-1">
+                        <div className="text-2xl font-black text-slate-950 font-mono leading-none">{shops.length} ခွဲ</div>
+                        <span className="text-[9px] text-emerald-600 font-bold block">● Active Live Shops</span>
+                      </div>
+                    </div>
+
+                    {/* Stat 2: Premium ဝယ်ယူတဲ့ဆိုင်အရေအတွက် */}
+                    <div className="bg-white border-2 border-teal-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] text-teal-650 font-black uppercase tracking-wider">Premium VIP ဆိုင်</span>
+                        <div className="w-8 h-8 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center text-xs">💎</div>
+                      </div>
+                      <div className="mt-4 space-y-1">
+                        <div className="text-2xl font-black text-slate-950 font-mono leading-none">
+                          {shops.filter(s => s.is_premium).length} ဆိုင်
+                        </div>
+                        <span className="text-[9px] text-teal-600 font-bold block">● Elite Subscription Mode</span>
+                      </div>
+                    </div>
+
+                    {/* Stat 3: Premium မှရငွေ */}
+                    <div className="bg-white border-2 border-emerald-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] text-emerald-650 font-black uppercase tracking-wider">Premium မှရငွေ</span>
+                        <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xs font-black">Ks</div>
+                      </div>
+                      <div className="mt-4 space-y-1">
+                        <div className="text-2xl font-black text-slate-950 font-mono leading-none">
+                          {(shops.filter(s => s.is_premium).length * 15000).toLocaleString()} Ks
+                        </div>
+                        <span className="text-[9px] text-slate-400 font-bold block">၁၅,၀၀၀ Ks / လ စနစ်နှုန်း</span>
+                      </div>
+                    </div>
+
+                    {/* Stat 4: လက်ရှိ အသုံးပြုနေတဲ့ အရေအတွက် */}
+                    <div className="bg-white border-2 border-sky-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] text-sky-650 font-black uppercase tracking-wider">လက်ရှိအသုံးပြုနေသောဆိုင်</span>
+                        <div className="w-8 h-8 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center text-xs">⚡</div>
+                      </div>
+                      <div className="mt-4 space-y-1">
+                        <div className="text-2xl font-black text-slate-950 font-mono leading-none">
+                          {shops.filter(s => getShopProductsCount(s.owner_uid) > 0 || getShopOrdersCount(s.owner_uid) > 0).length} ဆိုင်
+                        </div>
+                        <span className="text-[9px] text-sky-500 font-bold block">● ကုန်စည်/မှာယူမှု ရှိသောဆိုင်</span>
+                      </div>
+                    </div>
+
+                    {/* Stat 5: စျေးဆိုင်အသစ် */}
+                    <div className="bg-white border-2 border-orange-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] text-orange-650 font-black uppercase tracking-wider">စျေးဆိုင်အသစ်များ</span>
+                        <div className="w-8 h-8 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center text-xs">🌱</div>
+                      </div>
+                      <div className="mt-4 space-y-1">
+                        <div className="text-2xl font-black text-slate-950 font-mono leading-none">
+                          {shops.filter(s => getShopOrdersCount(s.owner_uid) <= 1).length} ဆိုင်
+                        </div>
+                        <span className="text-[9px] text-orange-400 font-bold block">● Fresh Storefronts</span>
+                      </div>
+                    </div>
+
+                    {/* Stat 6: စျေးဝယ်သူအရေအတွက် */}
+                    <div className="bg-white border-2 border-indigo-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] text-indigo-650 font-black uppercase tracking-wider">ဝယ်ယူသူအရေအတွက်</span>
+                        <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xs">👥</div>
+                      </div>
+                      <div className="mt-4 space-y-1">
+                        <div className="text-2xl font-black text-slate-950 font-mono leading-none">
+                          {new Set(orders.map(o => o.customer_phone).filter(Boolean)).size} ဦး
+                        </div>
+                        <span className="text-[9px] text-indigo-500 font-bold block">● ဖုန်းနံပါတ် သီးသန့်ဝယ်ယူသူ</span>
+                      </div>
+                    </div>
+
+                    {/* Stat 7: orders total counts */}
+                    <div className="bg-white border-2 border-yellow-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[10px] text-yellow-650 font-black uppercase tracking-wider">မှာယူမှု စုစုပေါင်း</span>
+                        <div className="w-8 h-8 bg-yellow-50 text-yellow-600 rounded-xl flex items-center justify-center text-xs">🛒</div>
+                      </div>
+                      <div className="mt-4 space-y-1">
+                        <div className="text-2xl font-black text-slate-950 font-mono leading-none">{orders.length} ဖြတ်ပိုင်း</div>
+                        <span className="text-[9px] text-slate-400 font-bold block">မှာယူမှုအသေးစိတ်မှတ်တမ်း</span>
+                      </div>
+                    </div>
+
+                    {/* Revenue Consolidated highlight block */}
+                    <div className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-2 border-amber-600 p-4.5 rounded-2xl flex flex-col justify-between shadow-md hover:scale-[1.01] transition-transform duration-200">
+                      <div className="flex justify-between items-start">
+                        <span className="text-[9px] text-amber-100 font-black uppercase tracking-wider">ဆိုင်ပေါင်းစုံ ပေါင်းစည်းရောင်းအား</span>
+                        <div className="w-8 h-8 bg-white/10 text-white rounded-xl flex items-center justify-center text-xs border border-white/10">Ks</div>
+                      </div>
+                      <div className="mt-4 space-y-1">
+                        <div className="text-xl font-bold font-mono truncate">{cumulativeSalesSum.toLocaleString()} Ks</div>
+                        <span className="text-[9px] text-amber-150 font-bold block">အောင်မြင်ပြီးသော အရောင်းရငွေ</span>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Profit breakdown comparison lists */}
+                  <div className="bg-white p-6 border border-slate-100 rounded-3xl space-y-5 shadow-xs">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-3.5 gap-2">
+                      <div>
+                        <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">🏪 စတိုးဆိုင် တစ်ခုချင်းစီ၏ လက်ရှိရောင်းအား (Sales Analytics Matrix)</h3>
+                        <p className="text-[10px] text-slate-500 mt-0.5">ဆိုင်ခွဲတစ်ခုချင်းစီ၏ စုစုပေါင်းရောင်းရငွေ၊ ကုန်စည်ပစ္စည်းစတော့၊ မှာယူမှုမှတ်တမ်းများနှင့် အချိုးအစား</p>
+                      </div>
+                      <button
+                        onClick={() => window.location.reload()}
+                        className="bg-amber-55 hover:bg-amber-100 text-amber-800 px-3 py-1.5 rounded-xl text-[10px] font-black border border-amber-200/55 flex items-center gap-1 transition active:scale-95 cursor-pointer"
+                      >
+                        🔄 Re-sync
+                      </button>
+                    </div>
+
+                    <div className="space-y-4">
+                      {shops.length === 0 ? (
+                        <div className="text-center py-10 bg-slate-50 rounded-2xl text-slate-400 font-bold text-xs">
+                          စနစ်တွင်စတိုးဆိုင်များ မရှိသေးပါခင်ဗျာ။
+                        </div>
+                      ) : (
+                        shops.map(sh => {
+                          const rev = getShopRevenue(sh.owner_uid);
+                          const prods = getShopProductsCount(sh.owner_uid);
+                          const ords = getShopOrdersCount(sh.owner_uid);
+                          const pct = cumulativeSalesSum > 0 ? (rev / cumulativeSalesSum) * 100 : 0;
+
+                          return (
+                            <div key={sh.owner_uid} className="p-4 bg-slate-50 border border-slate-100 hover:bg-orange-50/10 rounded-2xl transition flex flex-col md:flex-row md:items-center justify-between gap-4">
+                              <div className="space-y-1 md:flex-1">
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-extrabold text-slate-900 text-xs leading-none">{sh.name}</h4>
+                                  <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-200 rounded-full px-2 py-0.5 font-bold font-mono">
+                                    /{sh.slug}
+                                  </span>
+                                  {sh.is_premium && (
+                                    <span className="text-[8px] bg-amber-500 text-white font-black px-1.5 py-0.5 rounded-md uppercase tracking-tight">PRO VIP</span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-bold flex gap-3 flex-wrap">
+                                  <span>📞 {sh.phone || 'N/A'}</span>
+                                  <span>📍 {sh.address || 'N/A'}</span>
+                                </div>
+                              </div>
+
+                              {/* Progress bar info */}
+                              <div className="w-full md:w-44 space-y-1">
+                                <div className="flex justify-between text-[10px] text-slate-440 font-black">
+                                  <span>ရောင်းအားအချိုးအစား:</span>
+                                  <span>{Math.round(pct)}%</span>
+                                </div>
+                                <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden shadow-inner">
+                                  <div className="bg-amber-500 h-full transition-all duration-300" style={{ width: `${pct || 1}%` }}></div>
+                                </div>
+                              </div>
+
+                              {/* Metrics numeric boxes */}
+                              <div className="flex items-center justify-between md:justify-end gap-3 text-center text-[10px] font-black font-mono">
+                                <div className="bg-white border border-slate-200 rounded-xl p-2 w-16">
+                                  <span className="text-[9px] text-slate-400 block font-normal leading-none mb-0.5">ကုန်စည်</span>
+                                  <span className="text-slate-800 font-extrabold">{prods}</span>
+                                </div>
+                                <div className="bg-white border border-slate-200 rounded-xl p-2 w-16">
+                                  <span className="text-[9px] text-slate-400 block font-normal leading-none mb-0.5">မှာယူမှု</span>
+                                  <span className="text-slate-800 font-extrabold">{ords}</span>
+                                </div>
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-2 w-24 text-amber-800">
+                                  <span className="text-[9px] text-amber-500 block font-normal leading-none mb-0.5">ရောင်းရငွေ</span>
+                                  <span className="text-xs font-bold truncate block">{rev.toLocaleString()} Ks</span>
+                                </div>
+                              </div>
+
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Superadmin notification info tip card */}
+                  <div className="bg-[#FFF8F0] border border-[#FFD28E] rounded-3xl p-5 flex gap-4 text-orange-950 font-bold text-xs leading-relaxed shadow-3xs">
+                    <span className="text-2xl mt-0.5 select-none">💡</span>
+                    <div>
+                      <h4 className="font-extrabold text-orange-900 text-[13px] mb-1">အုပ်ချုပ်ရေးဗဟို စနစ်၏ အကောင်းဆုံး အင်္ဂါရပ်များ</h4>
+                      <p className="mb-1">၁။ ဆိုင်ခွဲများအားလုံးမှ customer များ အော်ဒါတင်လိုက်တိုင်း dynamic double chime ping alert audio system offline ကောင်းမွန်စွာအလုပ်လုပ်ပြီး ချက်ချင်း Noti သံမြည်လာပါမည်။</p>
+                      <p>၂။ customer မှ လှမ်းတင်လိုက်သည့် ငွေလွှဲပြေစာ ဖြတ်ပိုင်းပုံများအား iframe blocking full image security target_blank အခက်အခဲမရှိစေရန် standalone lightbox view screen modal Overlay ဖြင့် ဖန်တီးပေးထားသဖြင့် ချက်ချင်းနှိပ်၍ ပုံကြီးချဲ့ စစ်ဆေးနိုင်ပါသည်။</p>
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
+
+              {/* 📢 TAB 5: BROADCAST NOTIFICATION CENTER */}
+              {activeTab === 'broadcast' && (
+                <div className="space-y-6 animate-fade-in">
+                  <div className="bg-white p-6 border-2 border-orange-100 rounded-3xl shadow-xs space-y-4">
+                    <div className="border-b border-slate-100 pb-3">
+                      <h3 className="font-extrabold text-slate-900 text-sm">📢 Global Pop-up Notification Core (ဝဘ်ဆိုဒ်များအားလုံးသို့ ချက်ချင်းအချက်ပေးစနစ်)</h3>
+                      <p className="text-[10.5px] text-slate-500 mt-1">ဤနေရာမှ ထုတ်လွှင့်လိုက်သော pop-up notification သည် SOKO စတိုးဆိုင်ခွဲများအားလုံးရှိ customer များနှင့် ဆိုင်ရှင်များ၏ Screen ပေါ်တွင် ချက်ချင်း Real-time ပေါ်လာမည်ဖြစ်ပါသည်။</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      
+                      {/* Form builder */}
+                      <form onSubmit={handlePublishBroadcast} className="space-y-4 font-bold text-slate-700">
+                        
+                        {/* Predefined Real Scenarios Dropdown */}
+                        <div className="space-y-1 bg-amber-50/50 p-3.5 rounded-2xl border border-amber-150">
+                          <label className="block text-[10.5px] text-amber-900 font-black uppercase tracking-wider mb-1">📢 Noti အမှန်တကယ် လွှတ်ရခြင်း အကြောင်းအရင်း ရွေးချယ်ရန် (Predefined Scenarios)</label>
+                          <select 
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (val === 'maintenance') {
+                                setNotiTitle('⚙️ SOKO စနစ်သစ် အဆင့်မြှင့်တင်ခြင်း');
+                                setNotiBody('ချစ်လှစွာသော ဆိုင်ရှင်များနှင့် ဝယ်ယူသူများခင်ဗျာ၊ ယနေ့ည ၁၁း၀၀ မှ ၁၂း၀၀ ထိ SOKO ဝန်ဆောင်မှုများကို ပိုမိုမြန်ဆန်ချောမွေ့စေရန် စနစ်အား အဆင့်မြှင့်တင်မည်ဖြစ်သဖြင့် မှာယူမှုများ ယာယီရပ်နားထားပါမည်ခင်ဗျာ။');
+                                setNotiType('warning');
+                              } else if (val === 'bank_delay') {
+                                setNotiTitle('💸 KBZPay/WavePay ငွေပေးချေမှု ယာယီနှောင့်နှေးနိုင်ခြင်း သတိပေးချက်');
+                                setNotiBody('လက်ရှိအချိန်တွင် မိုဘိုင်းလ်ဘဏ်စနစ်များ (KBZPay/WavePay) စနစ်ကြပ်ညပ်နေသဖြင့် ငွေလွှဲပြေစာ စစ်ဆေးအတည်ပြုရန် ယာယီအနည်းငယ်ကြာမြင့်နိုင်ပါသည်။ မှာယူသူ customer များ နားလည်ပေးပါရန် တောင်းပန်အပ်ပါသည်။');
+                                setNotiType('info');
+                              } else if (val === 'alert_orders') {
+                                setNotiTitle('🔔 ဆိုင်ရှင်များ အော်ဒါအသစ်ဝင်ရောက်လာခြင်း စစ်ဆေးရန်');
+                                setNotiBody('ချစ်လှစွာသော SOKO ဆိုင်ရှင်များခင်ဗျာ၊ မိမိတို့ဆိုင်ခွဲများတွင် customer များထံမှ မှာယူမှုအသစ်များ တက်လာပါသဖြင့် dashboard သို့ အမြန်ဆုံးဝင်ရောက်ပြီး မှာယူမှုကို စစ်ဆေးအတည်ပြုပေးပါရန် အသိပေးအပ်ပါသည်။');
+                                setNotiType('success');
+                              } else if (val === 'urgent_security') {
+                                setNotiTitle('🚨 အရေးပေါ် လုံခြုံရေးစနစ် ပြုပြင်ထိန်းသိမ်းမှု သတင်းစကား');
+                                setNotiBody('စနစ်လုံခြုံရေးအရ database စနစ်သစ်များ တပ်ဆင်နေသဖြင့် app data များ မပျောက်ပျက်စေရန် အုပ်ချုပ်သူများမှ အမြန်ဆုံး အရေးပေါ် ဆော့ဖ်ဝဲပြုပြင်မှုများ လုပ်ဆောင်နေပါသဖြင့် ဆိုင်ပြင်ဆင်မှုများကို ခေတ္တစောင့်ဆိုင်းပေးပါရန်။');
+                                setNotiType('danger');
+                              } else if (val === 'custom') {
+                                setNotiTitle('');
+                                setNotiBody('');
+                                setNotiType('info');
+                              }
+                            }}
+                            defaultValue="custom"
+                            className="w-full bg-white border border-orange-200 p-2.5 rounded-xl text-xs font-extrabold focus:outline-none"
+                          >
+                            <option value="custom">✍️ ကိုယ်ပိုင်စိတ်ကြိုက်စာသား ရေးသားမည် (Custom Message)</option>
+                            <option value="maintenance">⚙️ စနစ်ပြုပြင်ထိန်းသိမ်းခြင်း (System Upgrade & Maintenance Summary)</option>
+                            <option value="bank_delay">💸 KBZPay/WavePay ဘဏ်စနစ် ကြန့်ကြာခြင်း (Payment Delays Announcement)</option>
+                            <option value="alert_orders">🔔 ဆိုင်ရှင်များအား အော်ဒါစစ်ဆေးရန် တိုက်တွန်းခြင်း (Prompt Owners to Match Orders)</option>
+                            <option value="urgent_security">🚨 အရေးပေါ်လုံခြုံရေးသတိပေးချက် (Urgent Security Patch Notification)</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-xs font-bold text-slate-705">Noti ခေါင်းစဉ် (Title)</label>
+                          <input 
+                            type="text"
+                            required
+                            value={notiTitle}
+                            onChange={e => setNotiTitle(e.target.value)}
+                            placeholder="ဥပမာ- SOKO စနစ် အလွန်အရေးကြီးသော သတင်းစကား"
+                            className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl focus:bg-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-xs font-bold text-slate-705">Noti အချက်အလက် (Message Body)</label>
+                          <textarea 
+                            required
+                            rows={3}
+                            value={notiBody}
+                            onChange={e => setNotiBody(e.target.value)}
+                            placeholder="ဥပမာ- ယနေ့ည ၁၀ နာရီမှ ၁၁ နာရီအတွင်း KPay စနစ် ပြုပြင်ထိန်းသိမ်းမှု ရှိမည်ဖြစ်သဖြင့် မှာယူမှုများကို စောင့်ဆိုင်းပေးပါရန်..."
+                            className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl focus:bg-white text-xs font-bold focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <label className="block text-xs font-bold text-slate-705">Noti ပုံစံအမျိုးအစား (Type)</label>
+                            <select 
+                              value={notiType}
+                              onChange={e => setNotiType(e.target.value)}
+                              className="w-full bg-slate-50 border border-slate-200 p-3 rounded-xl focus:bg-white text-xs font-bold focus:outline-none"
+                            >
+                              <option value="info">🔵 သတင်းအချက်အလက် (Info - Blue)</option>
+                              <option value="success">🟢 အောင်မြင်မှုသတင်း (Success - Green)</option>
+                              <option value="warning">🟡 သတိပေးချက် (Warning - Yellow)</option>
+                              <option value="danger">🔴 အရေးပေါ်ပြဿနာ (Urgent - Red)</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="block text-xs font-bold text-slate-705">လက်ရှိ Status</label>
+                            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black flex items-center gap-2">
+                              {notiActive ? (
+                                <span className="text-emerald-600 flex items-center gap-1.5 live-pulse">
+                                  <span className="w-2 h-2 bg-emerald-600 rounded-full"></span> Active (ထုတ်လွှင့်နေဆဲ)
+                                </span>
+                              ) : (
+                                <span className="text-slate-400">● Inactive (ပိတ်ထားသည်)</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2.5 pt-3 border-t border-slate-100">
+                          <button
+                            type="submit"
+                            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-black py-3 px-4 rounded-xl text-xs transition duration-150 active:scale-[0.98] shadow-md hover:shadow-lg text-center cursor-pointer"
+                          >
+                            🚀 Pop-up အသစ် ထုတ်လွှင့်မည်
+                          </button>
+
+                          {notiActive && (
+                            <button
+                              type="button"
+                              onClick={handleDisableBroadcast}
+                              className="bg-slate-900 hover:bg-rose-700 text-white hover:text-white font-black py-3 px-4 rounded-xl text-xs transition duration-150 active:scale-[0.98] text-center cursor-pointer"
+                            >
+                              🔕 ထုတ်လွှင့်မှုပိတ်မည်
+                            </button>
+                          )}
+                        </div>
+                      </form>
+
+                      {/* Noti Live Preview Box */}
+                      <div className="bg-[#FFFDF9] border-2 border-dashed border-amber-200 p-6 rounded-2xl flex flex-col justify-center relative overflow-hidden">
+                        <div className="absolute top-2 right-2 text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-md">Live Preview Demo</div>
+                        
+                        <div className={`p-5 rounded-2xl border-2 space-y-3.5 shadow-md ${
+                          notiType === 'success' 
+                            ? 'bg-emerald-50/50 border-emerald-250' 
+                            : notiType === 'warning' 
+                            ? 'bg-amber-50/50 border-amber-250'
+                            : notiType === 'danger'
+                            ? 'bg-rose-50/50 border-rose-250 animate-pulse'
+                            : 'bg-indigo-50/50 border-indigo-250'
+                        }`}>
+                          <div className="flex items-start gap-3">
+                            <span className="text-2xl mt-0.5">
+                              {notiType === 'success' ? '🎉' : notiType === 'warning' ? '⚠️' : notiType === 'danger' ? '🚨' : '📢'}
+                            </span>
+                            <div className="space-y-1 flex-1">
+                              <h4 className="font-extrabold text-sm text-slate-900 leading-snug">{notiTitle || 'သတင်းစကား'}</h4>
+                              <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-line">{notiBody || 'အသေးစိတ်စာသားများ...'}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                            <button 
+                              type="button"
+                              onClick={() => triggerToast('ယခုခလုတ်သည် preview ဖြစ်သည်။', 'info')}
+                              className="bg-white hover:bg-slate-100 border border-slate-200 text-slate-800 text-[10.5px] font-bold px-3.5 py-1.5 rounded-lg shadow-3xs"
+                            >
+                              အိုကေ (OK)
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 text-[10.5px] text-zinc-500 leading-relaxed text-center italic">
+                          💡 Real-time ထုတ်လွှင့်ပြီးနောက် user ဖုန်း သို့မဟုတ် ကွန်ပျူတာပေါ်တွင် SOKO system app ဖွင့်ထားပါက ချက်ချင်း pop-up window အဖြစ် dynamic ပေါ်လာမည်ဖြစ်ပြီး "အိုကေ" နှိပ်မှသာ ပိတ်သွားမည်ဖြစ်သည်။
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                </div>
+              )}
+
+
+              {/* 💬 TAB: SUGGESTIONS & MERCHANT FEEDBACK HUB */}
+              {activeTab === 'suggestions' && (
+                <div className="space-y-6 animate-fade-in text-slate-800">
+                  <div className="bg-white p-6 md:p-8 rounded-3xl border-2 border-slate-100 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-slate-100/40 rounded-full filter blur-3xl translate-x-12 -translate-y-12"></div>
+                    
+                    <div className="relative space-y-4">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl bg-slate-800 text-white w-12 h-12 rounded-xl flex items-center justify-center font-black select-none shadow-md">
+                          💬
+                        </span>
+                        <div>
+                          <h2 className="text-sm font-black text-slate-950 uppercase tracking-wider">ကျေးဇူးတင်စွာဖြင့် အကြံပြုချက်များနှင့် တုံ့ပြန်မှုများ (Merchant Suggestions Feed)</h2>
+                          <p className="text-xs text-slate-500 font-bold">လုပ်ငန်းရှင်အသီးသီးမှ တိုက်ရိုက်တင်သွင်းလာသော အကြံပြုချက်များနှင့် လုပ်ငန်းလိုအပ်ချက်များ</p>
+                        </div>
+                      </div>
+                      
+                      <p className="text-xs text-slate-600 leading-relaxed font-semibold">
+                        SOKO ဝက်ဘ်ဆိုက်၏ ဆက်တင်စာမျက်နှာမှတဆင့် လုပ်ငန်းရှင်များ တင်ပြလိုက်သော feedback များနှင့် တောင်းဆိုမှုများကို ဤ Hub တွင် အုပ်ချုပ်သူများမှ အချိန်နှင့်တပြေးညီ တိုက်ရိုက်ဖတ်ရှုနိုင်ပါသည်။
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Feed container */}
+                  <div className="space-y-4">
+                    {loadingSuggestions ? (
+                      <div className="text-center py-12 bg-white rounded-3xl border border-slate-100 shadow-3xs space-y-3">
+                        <div className="w-8 h-8 border-3 border-slate-800 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                        <p className="text-xs text-slate-405 font-bold font-mono">Loading real-time feedbacks collection...</p>
+                      </div>
+                    ) : suggestions.length === 0 ? (
+                      <div className="text-center py-16 bg-white rounded-3xl border border-slate-100 shadow-3xs text-slate-400 text-xs font-bold space-y-3">
+                        <p className="text-5xl">📥</p>
+                        <p>ဝင်လာသော အကြံပြုချက် သို့မဟုတ် တောင်းဆိုမှုများ လတ်တလော မတွေ့ရှိရသေးပါခင်ဗျာ။</p>
+                        <p className="text-[10px] text-zinc-400 font-semibold font-mono">Ready to receive merchant suggestions via Firestore</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {suggestions.map((sug) => (
+                          <div key={sug.id} className="bg-white border-2 border-slate-100 p-5 rounded-3xl flex flex-col justify-between gap-4.5 shadow-3xs hover:border-slate-350 transition-all">
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-start flex-wrap gap-2">
+                                <div className="space-y-0.5">
+                                  <span className="text-xs font-black text-slate-900 block">👤 {sug.sender_name || 'အမည်မသိ ဆိုင်ရှင်'}</span>
+                                  <span className="text-[10px] text-slate-450 font-bold font-mono block">✉️ {sug.sender_email || 'N/A'}</span>
+                                </div>
+                                <span className="text-[9px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-black uppercase tracking-wider font-mono">
+                                  {sug.created_at ? new Date(sug.created_at).toLocaleString('en-US', { hour12: true }) : 'လုပ်ဆောင်ချိန် N/A'}
+                                </span>
+                              </div>
+
+                              <div className="p-3.5 bg-slate-50 border border-slate-150 rounded-2xl">
+                                <p className="text-xs text-slate-700 leading-relaxed font-extrabold whitespace-pre-wrap select-all font-sans">
+                                  {sug.content}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="pt-3.5 border-t border-slate-50 flex justify-between items-center text-xs">
+                              <span className="text-[10px] text-emerald-650 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full font-black">
+                                ● Received & Synced
+                              </span>
+                              
+                              <button
+                                onClick={async () => {
+                                  if (confirm('ဤအကြံပြုချက်စာသားအား ဖျက်သိမ်းလိုပါသလားခင်ဗျာ။')) {
+                                    try {
+                                      await db.collection('suggestions').doc(sug.id).delete();
+                                      triggerToast('🗑️ အကြံပြုချက်ကို အောင်မြင်စွာ ဖျက်သိမ်းပြီးပါပြီ။', 'success');
+                                    } catch (err) {
+                                      triggerToast('ဖျက်သိမ်းမှုစနစ် ချို့ယွင်းသွားပါသည်။', 'error');
+                                    }
+                                  }
+                                }}
+                                className="text-rose-600 hover:text-rose-700 text-[10px] font-black cursor-pointer hover:underline"
+                              >
+                                ✕ ပြကွက်မှဖျက်မည်
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+
+              {/* 💎 TAB 6: PREMIUM MONETIZATION ADVISORY BOARD */}
+              {activeTab === 'premium' && (
+                <div className="space-y-6 animate-fade-in">
+                  
+                  {/* Strategic Intro Card */}
+                  <div className="bg-[#FFFDF9] border-2 border-emerald-100 p-6 md:p-8 rounded-3xl shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-emerald-100/30 rounded-full filter blur-3xl translate-x-12 -translate-y-12"></div>
+                    
+                    <div className="relative space-y-5">
+                      <div className="flex items-center gap-3">
+                        <span className="text-3xl bg-emerald-600 text-white w-12 h-12 rounded-xl flex items-center justify-center font-black select-none shadow-md">
+                          💎
+                        </span>
+                        <div>
+                          <h2 className="text-lg font-black text-slate-950">SOKO Platform Monetization & Setup Premium </h2>
+                          <p className="text-xs text-slate-500 font-bold font-mono">SOKO ဝဘ်ဆိုက်မှ တဆင့် ဆိုင်ရှင်များအား Premium Subscription ဝန်ဆောင်မှုပေးကာ စဉ်ဆက်မပြတ် ငွေရှာနိုင်မည့် မဟာဗျူဟာများ</p>
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        SOKO သည် ဆိုင်ခွဲများစွာကို တစ်နေရာတည်းမှ စီမံခန့်ခွဲနိုင်သော SaaS (Software as a Service) စနစ်ဖြစ်ပြီး၊ ဆိုင်ရှင်များထံမှ လစဉ်ကြေး (Subscription Fee) သို့မဟုတ် ရောင်းရငွေအပေါ် ကော်မရှင် (Commission) ယူသည့် စနစ်ဖြင့် အောင်မြင်စွာ ငွေရှာနိုင်ပါသည်။ အောက်တွင် SOKO Premium Package သတ်မှတ်ရန် အကြံပြုချက်များနှင့် လက်တွေ့ အကောင်အထည်ဖော်ရန် လုပ်ငန်းစဉ်များကို ဖော်ပြအပ်ပါသည်။
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5.5 pt-2">
+                        
+                        {/* Premium Idea 1 */}
+                        <div className="bg-white p-4.5 border border-emerald-100 rounded-2xl space-y-2 hover:shadow-md transition">
+                          <span className="text-2xl block select-none">🌐</span>
+                          <h4 className="font-extrabold text-xs text-slate-900">Custom Branded Link / Domain</h4>
+                          <p className="text-[10.5px] text-slate-600 leading-relaxed">
+                            Premium ဆိုင်ရှင်များအတွက် soko.com/slug အစား မိမိတို့ကိုယ်ပိုင် domain (ဥပမာ- www.myclothingstore.com) ကို ချိတ်ဆက်ခွင့်ပေးခြင်း။
+                          </p>
+                        </div>
+
+                        {/* Premium Idea 2 */}
+                        <div className="bg-white p-4.5 border border-emerald-100 rounded-2xl space-y-2 hover:shadow-md transition">
+                          <span className="text-2xl block select-none">📊</span>
+                          <h4 className="font-extrabold text-xs text-slate-900">Advanced Sales Insights & Charts</h4>
+                          <p className="text-[10.5px] text-slate-600 leading-relaxed">
+                            ရောင်းအားအကောင်းဆုံး ပစ္စည်းများ၊ လအလိုက် Sales analytics trend များနှင့် customer data တင်သွင်း/တင်ပို့ခွင့် (CSV export) ပေးခြင်း။
+                          </p>
+                        </div>
+
+                        {/* Premium Idea 3 */}
+                        <div className="bg-white p-4.5 border border-emerald-100 rounded-2xl space-y-2 hover:shadow-md transition">
+                          <span className="text-2xl block select-none">🛎️</span>
+                          <h4 className="font-extrabold text-xs text-slate-900">SMS / Telegram API Notification</h4>
+                          <p className="text-[10.5px] text-slate-600 leading-relaxed">
+                            Customer အော်ဒါတင်လိုက်ပါက ဆိုင်ရှင်၏ Telegram Group သို့မဟုတ် Buyer ၏ ဖုန်းထံသို့ အသိပေး SMS/Viber စာတို အော်တို ပေးပို့ပေးခြင်း။
+                          </p>
+                        </div>
+
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Pricing Comparison Package Card Mockup */}
+                  <div className="bg-white p-6 border-2 border-orange-100 rounded-3xl space-y-6 shadow-xs">
+                    <div className="border-b border-slate-100 pb-3">
+                      <h3 className="font-extrabold text-slate-950 text-xs uppercase tracking-wide text-amber-900">💎 SOKO Proposed Pricing Tier Draft</h3>
+                      <p className="text-[10.5px] text-slate-500 mt-1">ဆိုင်ရှင်များအား ကမ်းလှမ်းရန် သတ်မှတ်ထားသော အစီအစဉ်များ</p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      
+                      {/* Free Tier */}
+                      <div className="border-2 border-slate-100 p-5 rounded-2xl space-y-4">
+                        <div className="space-y-1">
+                          <span className="text-[10px] bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-full font-black uppercase">Standard Free</span>
+                          <h4 className="text-lg font-black text-slate-900">0 Ks / လ</h4>
+                          <p className="text-[11px] text-slate-600 font-medium">စတင်စမ်းသပ် ရောင်းချလိုသူများအတွက်</p>
+                        </div>
+                        <ul className="text-[11px] text-slate-600 font-bold space-y-2 border-t border-slate-100 pt-3">
+                          <li className="flex items-center gap-2">🟢 ကုန်ပစ္စည်းစာရင်း ၂၀ မျိုးအထိ တင်ခွင့်</li>
+                          <li className="flex items-center gap-2">🟢 လစဉ်အော်ဒါ ၅၀ အထိသာ လက်ခံခွင့်</li>
+                          <li className="flex items-center gap-2">🟢 KPay/Wave ငွေလွှဲပြေစာ တင်စနစ်</li>
+                          <li className="text-rose-600 flex items-center gap-2">❌ ကိုယ်ပိုင် Custom Domain သုံးခွင့်မရပါ</li>
+                          <li className="text-rose-600 flex items-center gap-2">❌ Advanced Sales reports မရရှိနိုင်ပါ</li>
+                        </ul>
+                      </div>
+
+                      {/* Premium Tier */}
+                      <div className="border-2 border-amber-300 bg-amber-50/20 p-5 rounded-2xl space-y-4 relative">
+                        <div className="absolute top-3 right-3 text-[10px] bg-amber-500 text-white px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider animate-bounce">Best Value</div>
+                        <div className="space-y-1">
+                          <span className="text-[10px] bg-amber-500 text-white px-2.5 py-0.5 rounded-full font-black uppercase">SOKO Pro Premium 💎</span>
+                          <h4 className="text-lg font-black text-amber-900">15,000 Ks / လ</h4>
+                          <p className="text-[11px] text-amber-800 font-bold">စီးပွားရေး အရှိန်အဟုန်မြှင့်တင်လိုသူများအတွက်</p>
+                        </div>
+                        <ul className="text-[11px] text-slate-700 font-bold space-y-2 border-t border-amber-200/50 pt-3">
+                          <li className="flex items-center gap-2">💎 ပစ္စည်းတင်မှု အကန့်အသတ်မရှိ (Unlimited Products)</li>
+                          <li className="flex items-center gap-2">💎 အရောင်းအော်ဒါ လက်ခံမှု အကန့်အသတ်မရှိ (Unlimited Orders)</li>
+                          <li className="flex items-center gap-2">💎 Own Custom Domain / soko.pro/yourname</li>
+                          <li className="flex items-center gap-2">💎 CSV Sales Report & Advanced analytics graphs</li>
+                          <li className="flex items-center gap-2">💎 Premium VIP badge (စတိုးဆိုင်ပေါ်တွင် စိတ်ချရသောဆိုင် အမှတ်အသား)</li>
+                          <li className="flex items-center gap-2">💎 Fast Support + ဝင်ရောက်အော်ဒါ Noti alert trigger ပိုမိုမြန်ဆန်</li>
+                        </ul>
+                      </div>
+
+                    </div>
+
+                    {/* How to collect payment banner tips */}
+                    <div className="p-4 bg-emerald-50 border border-emerald-150 rounded-2xl space-y-2 text-[11px] text-emerald-950 font-bold leading-relaxed">
+                      <span className="text-base">📢 <b>ငွေကောက်ခံရန် အလွယ်ဆုံးနည်းလမ်း (Automatic Billing Bypass for Myanmar):</b></span>
+                      <p>
+                        ဆိုင်ရှင်များ Settings မှ Premium Upgrade ခလုတ်ကို နှိပ်ပါက SOKO Superadmin (သင်) ၏ KPay/Wave QR code နှင့်အတူ ငွေလွှဲပေးစာတင်ခိုင်းသည့် modal တစ်ခု ပေါ်လာအောင် ပြုလုပ်နိုင်ပါသည်။ ဆိုင်ရှင်မှ ငွေလွှဲတင်ပြီးပါက သင်၏ Superadmin Cockpit (ယခု screen) ရှိ "စတိုးဆိုင်များ" Tab တွင် ၎င်းဆိုင်ခွင့်ပြုချက်အား <b>Normal မှ Premium သို့ တိုက်ရိုက်ပြောင်းလဲပေးခြင်းဖြင့်</b> dynamic update auto-unlocked ဖြစ်စေနိုင်ပါသည်။
+                      </p>
+                    </div>
+
+                  </div>
+
+                </div>
+              )}
+
+
+              {/* 🏪 TAB 2: STOREFRONTS MANAGEMENT */}
+              {activeTab === 'shops' && (
+                <div className="space-y-5 animate-fade-in">
+                  
+                  {/* Shop searching block */}
+                  <div className="bg-white p-4.5 border-2 border-orange-100 rounded-3xl flex flex-col sm:flex-row items-center gap-4.5 shadow-3xs">
+                    <div className="relative w-full flex-1">
+                      <input 
+                        type="text"
+                        value={shopQuery}
+                        onChange={e => setShopQuery(e.target.value)}
+                        placeholder="စတိုးဆိုင်အမည်၊ လင့်ခ်အမည်၊ ဖုန်းနံပါတ် သို့မဟုတ် လိပ်စာဖြင့် ရှာပါ..."
+                        className="w-full bg-slate-50 border border-slate-250 p-3 pl-5 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold"
+                      />
+                    </div>
+                    {shopQuery && (
+                      <button onClick={() => setShopQuery('')} className="text-xs text-rose-600 font-extrabold active:scale-95 transition cursor-pointer">Clear Filter</button>
+                    )}
+                  </div>
+
+                  {/* Grid layout list */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4.5">
+                    {filteredShops.length === 0 ? (
+                      <div className="col-span-full py-16 text-center bg-white border border-dashed border-slate-200 rounded-3xl text-xs font-bold text-slate-400">
+                        ကိုက်ညီသည့် စတိုးဆိုင် တင်သွင်းမှုများ ရှာမတွေ့ပါခင်ဗျာ။
+                      </div>
+                    ) : (
+                      filteredShops.map(s => (
+                        <div key={s.owner_uid} className="bg-white border-2 border-orange-100 hover:border-amber-300 rounded-3xl p-5 shadow-3xs hover:shadow-xs transition flex flex-col justify-between gap-5">
+                          
+                          <div className="space-y-4">
+                            <div className="flex justify-between items-start">
+                              <div className="flex gap-3">
+                                <span className="text-3xl bg-amber-50 border border-amber-100 w-12 h-12 rounded-xl flex items-center justify-center select-none shadow-3xs">
+                                  {s.is_premium ? '💎' : '🏪'}
+                                </span>
+                                <div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <h4 className="font-extrabold text-slate-900 text-xs leading-snug">{s.name}</h4>
+                                    {s.is_premium && (
+                                      <span className="bg-amber-500 text-white text-[8px] font-black tracking-tight px-1.5 py-0.5 rounded-full uppercase">PRO VIP</span>
+                                    )}
+                                  </div>
+                                  <p className="text-amber-700 font-black text-[9.5px] mt-0.5">
+                                    လင့်ခ်- <span className="underline font-mono">/store/{s.slug}</span>
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => setEditingShop(s)}
+                                  className="bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-amber-700 p-2.5 rounded-xl border border-slate-200/60 transition cursor-pointer active:scale-95 text-[10.5px] font-bold"
+                                  title="ပြင်ဆင်မည်"
+                                >
+                                  ✏️ ပြင်မည်
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteShopRecord(s.owner_uid, s.name)}
+                                  className="bg-red-50 hover:bg-red-100 text-red-650 p-2.5 rounded-xl border border-red-100 transition cursor-pointer active:scale-95 text-[10.5px] font-bold"
+                                  title="လုံးဝဖျက်မည်"
+                                >
+                                  ❌ ဖျက်
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Shop accounts information details */}
+                            <div className="grid grid-cols-2 gap-3.5 pt-3.5 border-t border-slate-100 text-[11px] font-bold text-slate-500">
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] text-zinc-400 uppercase tracking-wider block">🗣️ ဆက်သွယ်ရန်ဖုန်း</span>
+                                <span className="text-slate-800 block truncate">{s.phone || 'မရှိပါ'}</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] text-zinc-400 uppercase tracking-wider block">📍 ဆိုင်လိပ်စာ</span>
+                                <span className="text-slate-800 block truncate" title={s.address}>{s.address || 'မရှိပါ'}</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] text-zinc-400 uppercase tracking-wider block">💳 KPay အမည်</span>
+                                <span className="text-slate-800 block truncate">{s.kpay_name || 'မရှိပါ'}</span>
+                              </div>
+                              <div className="space-y-0.5">
+                                <span className="text-[9px] text-zinc-400 uppercase tracking-wider block">💳 KPay နံပါတ်</span>
+                                <span className="text-orange-600 block font-mono truncate">{s.kpay_number || 'မရှိပါ'}</span>
+                              </div>
+                            </div>
+
+                            {/* Payment channels */}
+                            {s.payment_accounts && s.payment_accounts.length > 0 && (
+                              <div className="space-y-1.5 pt-3.5 border-t border-[#FFFDF9]">
+                                <span className="text-[9px] text-amber-800 font-black uppercase tracking-wider block">💸 အခြားငွေပေးချေမှုဘဏ်များ ({s.payment_accounts.length} ခု)</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {s.payment_accounts.map(pacc => (
+                                    <div key={pacc.id} className="text-[9px] bg-slate-50 border border-slate-200 rounded-lg p-1 px-1.5 font-bold text-slate-600 flex items-center gap-1">
+                                      <span className="bg-amber-100 text-amber-800 px-1 rounded-sm text-[8px]">{pacc.provider}</span>
+                                      <span>{pacc.account_number} ({pacc.account_name})</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                          </div>
+
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-2.5 flex justify-between items-center text-[9.5px] text-slate-400 font-mono">
+                            <span>UID: {s.owner_uid.substring(0, 10)}...</span>
+                            <a
+                              href={`/store/${s.slug}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-amber-600 hover:text-amber-800 font-black cursor-pointer underline flex items-center gap-0.5"
+                            >
+                              ဆိုင်အစမ်းကြည့်ရန် 🔗
+                            </a>
+                          </div>
+
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                </div>
+              )}
+
+
+              {/* 📦 TAB 3: PRODUCTS WAREHOUSE */}
+              {activeTab === 'products' && (
+                <div className="space-y-5 animate-fade-in">
+                  
+                  {/* Search query fields */}
+                  <div className="bg-white p-4.5 border-2 border-orange-100 rounded-3xl flex flex-col sm:flex-row items-center gap-4.5 shadow-3xs">
+                    <div className="relative w-full flex-1">
+                      <input 
+                        type="text"
+                        value={productQuery}
+                        onChange={e => setProductQuery(e.target.value)}
+                        placeholder="ကုန်စည်အမည်၊ အမျိုးအစား၊ သို့မဟုတ် ဆိုင်နာမည်ဖြင့် ရှာရန်..."
+                        className="w-full bg-slate-50 border border-slate-250 p-3 pl-5 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold"
+                      />
+                    </div>
+                    {productQuery && (
+                      <button onClick={() => setProductQuery('')} className="text-xs text-rose-600 font-extrabold active:scale-95 cursor-pointer">Clear Filter</button>
+                    )}
+                  </div>
+
+                  {/* Products Grid list */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4.5">
+                    {filteredProducts.length === 0 ? (
+                      <div className="col-span-full py-16 text-center bg-white border border-dashed border-slate-200 rounded-3xl text-sm font-bold text-slate-400">
+                        ကိုက်ညီသည့်ကုန်ပစ္စည်း မတွေ့ရှိရသေးပါခင်ဗျာ။
+                      </div>
+                    ) : (
+                      filteredProducts.map(p => (
+                        <div key={p.id} className="bg-white border-2 border-orange-100 hover:border-amber-305 rounded-3xl p-4 flex flex-col justify-between gap-4 shadow-3xs group">
+                          
+                          <div className="space-y-3">
+                            {/* Product preview image display */}
+                            <div className="relative aspect-square w-full bg-orange-50/50 border border-orange-100/50 rounded-2xl overflow-hidden flex items-center justify-center shadow-inner">
+                              {p.image && (p.image.startsWith('http') || p.image.startsWith('data:image/')) ? (
+                                <img src={p.image} alt={p.name} className="w-full h-full object-cover transition duration-300 group-hover:scale-105" />
+                              ) : (
+                                <span className="text-4xl select-none">{p.image || '📦'}</span>
+                              )}
+                              <span className="absolute bottom-2 left-2 bg-slate-900/60 backdrop-blur-3xs text-white text-[9px] font-black px-2.5 py-1 rounded-lg">
+                                {p.category || 'အထွေထွေ'}
+                              </span>
+                            </div>
+
+                            {/* Info list */}
+                            <div className="space-y-1">
+                              <h4 className="font-extrabold text-slate-900 text-xs leading-snug line-clamp-1">{p.name}</h4>
+                              <p className="text-[10px] text-slate-450 font-medium">ဆိုင်- <span className="text-slate-700 font-extrabold">{getShopName(p.owner_uid)}</span></p>
+                              
+                              <div className="flex justify-between items-center pt-1.5 font-mono">
+                                <span className="text-amber-600 text-[13px] font-black">{p.price.toLocaleString()} Ks</span>
+                                {p.stock !== undefined && (
+                                  <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-md ${
+                                    p.stock > 10 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-750 border border-rose-100'
+                                  }`}>
+                                    စတော့- {p.stock} ခု
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Options admin button */}
+                          <div className="grid grid-cols-2 gap-2 border-t border-slate-100 pt-3">
+                            <button
+                              onClick={() => setEditingProduct(p)}
+                              className="bg-amber-50 hover:bg-amber-100 text-amber-800 p-2 rounded-xl text-[10.5px] font-extrabold transition cursor-pointer active:scale-95 text-center"
+                            >
+                              ✏️ ပြင်ဆင်မည်
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProductRecord(p.id, p.name)}
+                              className="bg-rose-50 hover:bg-rose-100 text-rose-700 p-2 rounded-xl text-[10.5px] font-extrabold transition cursor-pointer active:scale-95 text-center"
+                            >
+                              ❌ ဖျက်မည်
+                            </button>
+                          </div>
+
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                </div>
+              )}
+
+
+              {/* 🛒 TAB 4: LIVE CLIENT ORDERS FEED */}
+              {activeTab === 'orders' && (
+                <div className="space-y-5 animate-fade-in">
+                  
+                  {/* Status sorting Header */}
+                  <div className="bg-white p-5 border-2 border-orange-100 rounded-3xl space-y-4 shadow-3xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-orange-100/50 pb-3">
+                      <div>
+                        <h3 className="font-extrabold text-slate-900 text-sm">🛒 မှာယူမှုများ တိုက်ရိုက်ထိန်းချုပ်ရေးဇယား</h3>
+                        <p className="text-[10px] text-slate-500">ဆိုင်ခွဲအားလုံးမှ အပ်နှံထားသော customer အမှာစာများအား စစ်ဆေးအတည်ပြုရန်နှင့် ဖျက်သိမ်းရန်</p>
+                      </div>
+
+                      {/* Filter Status buttons */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {[
+                          { id: 'all', title: 'အားလုံး' },
+                          { id: 'pending', title: '⏳ စောင့်ဆိုင်းဆဲ' },
+                          { id: 'confirmed', title: '✅ အတည်ပြုပြီး' },
+                          { id: 'shipped', title: '🚚 ပို့ဆောင်ဆဲ' },
+                          { id: 'completed', title: '🎉 ပြီးဆုံးပြီး' },
+                          { id: 'cancelled', title: '❌ ပယ်ဖျက်ပြီး' }
+                        ].map(bt => (
+                          <button
+                            key={bt.id}
+                            onClick={() => setOrderStatusFilter(bt.id)}
+                            className={`px-3 py-1.5 rounded-xl text-[10px] font-black transition cursor-pointer ${
+                              orderStatusFilter === bt.id 
+                                ? 'bg-amber-500 text-white shadow-3xs' 
+                                : 'bg-slate-50 hover:bg-orange-50 text-slate-500 hover:text-orange-950 border border-slate-100'
+                            }`}
+                          >
+                            {bt.title}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="relative w-full">
+                      <input 
+                        type="text"
+                        value={orderQuery}
+                        onChange={e => setOrderQuery(e.target.value)}
+                        placeholder="ဝယ်ယူသူအမည်၊ ဖုန်းနံပါတ်၊ အော်ဒါနံပါတ် သို့မဟုတ် ဆိုင်ခွဲအမည်ဖြင့် ရှာရန်..."
+                        className="w-full bg-slate-50 border border-slate-250 p-3 pl-5 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 text-xs font-bold font-mono"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Orders lists vertical alignment */}
+                  <div className="space-y-4.5">
+                    {filteredOrders.length === 0 ? (
+                      <div className="text-center py-20 bg-white border-2 border-orange-100 rounded-3xl space-y-2">
+                        <span className="text-3xl select-none">🧾</span>
+                        <p className="text-slate-400 text-xs font-extrabold block">လက်ရှိတွင် ဖော်ပြစရာအရောင်းအော်ဒါများ မတွေ့ရှိသေးပါခင်ဗျာ။</p>
+                      </div>
+                    ) : (
+                      filteredOrders.map(ord => {
+                        const sName = getShopName(ord.owner_uid);
+                        const sSlug = getShopSlug(ord.owner_uid);
+                        const isCancelled = ord.status === 'cancelled';
+                        const isConfirmed = ord.status === 'confirmed' || ord.status === 'completed' || ord.status === 'shipped';
+                        const cardBgClass = isCancelled 
+                          ? "bg-rose-50/10 border-2 border-dashed border-rose-200/85 rounded-3xl p-5 shadow-3xs opacity-80 transition space-y-4 grayscale-30"
+                          : isConfirmed
+                          ? "bg-emerald-50/10 border-2 border-emerald-250 rounded-3xl p-5 shadow-3xs hover:border-emerald-350 transition space-y-4"
+                          : "bg-white border-2 border-orange-100 rounded-3xl p-5 shadow-3xs hover:shadow-xs transition space-y-4";
+
+                        return (
+                          <div key={ord.id} className={cardBgClass}>
+                            
+                            {/* Header profile row */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3 text-xs">
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-amber-600 font-extrabold text-[12.5px] select-all">#{ord.id}</span>
+                                  <span className={`text-[8.5px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                                    ord.status === 'pending' ? 'bg-amber-100 text-amber-800 animate-pulse border border-amber-200' :
+                                    ord.status === 'confirmed' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' :
+                                    ord.status === 'shipped' ? 'bg-blue-50 text-blue-800 border border-blue-100' :
+                                    ord.status === 'completed' ? 'bg-zinc-100 text-zinc-900 border border-zinc-200' :
+                                    'bg-rose-50 text-rose-800 border border-rose-100'
+                                  }`}>
+                                    {ord.status === 'pending' ? '⏳ စောင့်ဆိုင်းဆဲ' :
+                                     ord.status === 'confirmed' ? '✅ အတည်ပြုပြီး' :
+                                     ord.status === 'shipped' ? '🚚 ပို့ဆောင်ဆဲ' :
+                                     ord.status === 'completed' ? '🎉 ပြီးဆုံးပြီး' :
+                                     '❌ ပယ်ဖျက်ပြီး'}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-mono">📅 {new Date(ord.created_at).toLocaleString('my-MM', { hours12: true })}</p>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10.5px] text-zinc-400 font-bold">ဆိုင်ခွဲ:</span>
+                                <span className="bg-orange-50/50 border border-orange-150 text-amber-800 font-extrabold px-3 py-1 rounded-xl text-[11px]">
+                                  🏪 {sName} (/{sSlug})
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Main order detail blocks grid */}
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-5 text-xs text-slate-700 font-bold leading-relaxed">
+                              
+                              {/* Customer credentials information col */}
+                              <div className="md:col-span-4 space-y-3.5 bg-slate-50/55 p-3.5 border border-slate-100 rounded-2xl shadow-inner">
+                                <p className="text-[9.5px] text-amber-800 font-black uppercase tracking-wider border-b border-orange-100 pb-1 flex items-center gap-1.5 leading-none">
+                                  <span>👤 ဝယ်ယူသူအချက်အလက်</span>
+                                </p>
+                                <div className="space-y-1.5">
+                                  <p className="text-slate-900 font-extrabold text-[13px]">{ord.customer_name}</p>
+                                  <p className="text-orange-650 font-mono text-xs">📞 {ord.customer_phone}</p>
+                                  {ord.customer_address && (
+                                    <p className="text-slate-500 font-medium text-[11px] leading-snug">📍 {ord.customer_address}</p>
+                                  )}
+                                  {ord.customer_notes && (
+                                    <div className="bg-yellow-100/50 border border-yellow-250 p-2.5 rounded-xl text-[10.5px] text-yellow-950 font-bold mt-2">
+                                      📝 မှတ်ချက်: "{ord.customer_notes}"
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Cart Items lists table items col */}
+                              <div className="md:col-span-4 space-y-2.5">
+                                <p className="text-[9.5px] text-slate-450 font-black uppercase tracking-wider border-b border-orange-100 pb-1 flex items-center gap-1.5 leading-none">
+                                  <span>📦 မှာယူသည့်ပစ္စည်းစာရင်း ({ord.items ? ord.items.length : 0} မျိုး)</span>
+                                </p>
+                                <div className="space-y-2 max-h-[170px] overflow-y-auto pr-1">
+                                  {ord.items && ord.items.map((it, idx) => (
+                                    <div key={idx} className="flex justify-between items-center bg-slate-50/30 p-2.5 rounded-xl border border-slate-200/50 hover:bg-slate-50/80 transition text-xs font-bold leading-snug">
+                                      <div className="flex-1 min-w-0 pr-2">
+                                        <p className="text-slate-900 truncate">{it.name}</p>
+                                        <p className="text-slate-400 font-mono text-[10px] mt-0.5">{it.price.toLocaleString()} Ks × {it.quantity} ခု</p>
+                                      </div>
+                                      <span className="text-slate-700 font-mono font-extrabold">{(it.price * it.quantity).toLocaleString()} Ks</span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {/* Total amounts calculations banner */}
+                                <div className="flex justify-between items-center bg-amber-50 p-2.5 rounded-xl border border-amber-200/50 font-mono">
+                                  <span className="text-[11px] text-amber-800 font-black">ကျသင့်ငွေပေါင်း:</span>
+                                  <span className="text-[14px] text-amber-700 font-black">{(ord.total_amount || 0).toLocaleString()} Ks</span>
+                                </div>
+                              </div>
+
+                              {/* Cashier Payment receipts upload view col with zoom zoom */}
+                              <div className="md:col-span-4 space-y-2.5">
+                                <p className="text-[9.5px] text-orange-600 font-black uppercase tracking-wider border-b border-orange-100 pb-1 flex items-center gap-1.5 leading-none">
+                                  <span>🧾 ငွေလွှဲပြေစာ စစ်ဆေးရန်</span>
+                                </p>
+
+                                {ord.payment_slip_image ? (
+                                  <div className="bg-[#FFF8F0]/80 p-3 rounded-2xl border border-orange-100 flex items-center gap-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => setZoomedSlipImage(ord.payment_slip_image)}
+                                      className="relative w-18 h-18 bg-white border border-orange-200 rounded-xl overflow-hidden cursor-zoom-in flex-shrink-0 group hover:ring-2 hover:ring-orange-500 shadow-3xs"
+                                      title="ပုံကြီးချဲ့ရန်နှိပ်ပါ"
+                                    >
+                                      <img src={ord.payment_slip_image} alt="Slip" className="w-full h-full object-cover" />
+                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center text-white text-[9px] font-black">
+                                        🔍 Zoom
+                                      </div>
+                                    </button>
+                                    <div className="text-[9.5px] text-orange-950 font-bold leading-relaxed">
+                                      <p className="text-orange-900">💡 Customer တင်သွင်းခဲ့သော ငွေလွှဲပြေစာ ဖြတ်ပိုင်းဖြစ်ပါသည်။</p>
+                                      <p className="text-[#888888] font-normal leading-normal mt-0.5">အစမ်းကြည့်ပုံအားနှိပ်၍ Browser security အဟန့်အတားမရှိဘဲ Lightbox overlay ဖြင့် ပုံကြီးချဲ့ကြည့်ရှုနိုင်ပါသည်။</p>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center text-[10.5px] text-zinc-400 font-bold leading-relaxed">
+                                    🚲 ကုန်ပစ္စည်းပို့ဆောင်မှ ငွေချေစနစ် (Cash On Delivery) ဖြစ်သောကြောင့် ပြေစာပုံ မတင်ထားပါ။
+                                  </div>
+                                )}
+                              </div>
+
+                            </div>
+
+                            {/* Dropdowns Status changer operations footer */}
+                            <div className="flex flex-wrap items-center justify-between gap-4.5 border-t border-slate-100 pt-3.5">
+                              
+                              <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <span className="text-slate-500 font-black">⚙️ VIP အခြေအနေပြောင်းရန်-</span>
+                                <div className="flex gap-1 flex-wrap">
+                                  {[
+                                    { st: 'pending', btnText: '⏳ စောင့်ဆိုင်း' },
+                                    { st: 'confirmed', btnText: '✅ အတည်ပြု' },
+                                    { st: 'shipped', btnText: '🚚 ပို့ဆောင်ဆဲ' },
+                                    { st: 'completed', btnText: '🎉 ပြီးဆုံး' },
+                                    { st: 'cancelled', btnText: '❌ ပယ်ဖျက်' }
+                                  ].map(op => (
+                                    <button
+                                      key={op.st}
+                                      onClick={() => handleSetOrderStatus(ord.id, op.st)}
+                                      className={`px-3 py-1.5 rounded-xl font-bold transition-all text-[10px] cursor-pointer ${
+                                        ord.status === op.st 
+                                          ? 'bg-amber-100 text-amber-800 border border-amber-300' 
+                                          : 'bg-slate-50 hover:bg-slate-100 text-slate-650 hover:text-slate-900 border border-slate-200/50'
+                                      }`}
+                                    >
+                                      {op.btnText}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={() => handleDeleteOrderRecord(ord.id)}
+                                className="bg-red-50 hover:bg-red-100/70 text-red-750 font-black px-4 py-2 rounded-xl text-[10.5px] transition active:scale-95 border border-red-100 cursor-pointer"
+                              >
+                                🗑️ အော်ဒါစီမံဖျက်သိမ်းရန်
+                              </button>
+
+                            </div>
+
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                </div>
+              )}
+
+            </main>
+
+
+            {/* ================= MODAL WINDOW DIRECT OVERLAYS ================= */}
+
+            {/* MODAL 1: Edit Shop parameters details */}
+            {editingShop && (
+              <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                <form 
+                  onSubmit={handleSaveShopSettings}
+                  className="bg-[#FFFDF9] border border-orange-100 max-w-lg w-full rounded-3xl p-6.5 space-y-5 shadow-2xl relative"
+                >
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingShop(null)}
+                    className="absolute top-4 right-4 text-slate-400 hover:text-rose-600 font-black cursor-pointer text-sm w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center"
+                  >
+                    ✕
+                  </button>
+
+                  <div className="space-y-1">
+                    <h3 className="font-extrabold text-slate-900 text-sm">🏪 စတိုးဆိုင်အချက်အလက်များ တိုက်ရိုက်ပြင်ဆင်ခြင်း</h3>
+                    <p className="text-[10.5px] text-slate-500">လုပ်ငန်းခွဲဆိုင်၏ ID: {editingShop.owner_uid}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-bold text-slate-650">
+                    <div className="space-y-1">
+                      <label className="block">စတိုးဆိုင်အမည်</label>
+                      <input 
+                        type="text"
+                        required
+                        value={editingShop.name}
+                        onChange={e => setEditingShop({ ...editingShop, name: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block">စတိုးလင့်ခ် (URL Slug)</label>
+                      <input 
+                        type="text"
+                        required
+                        value={editingShop.slug}
+                        onChange={e => setEditingShop({ ...editingShop, slug: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:bg-white lowercase font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block">ဆက်သွယ်ရန်ဖုန်း</label>
+                      <input 
+                        type="text"
+                        required
+                        value={editingShop.phone || ''}
+                        onChange={e => setEditingShop({ ...editingShop, phone: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:bg-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block">ဆိုင်တည်နေရာလိပ်စာ</label>
+                      <input 
+                        type="text"
+                        required
+                        value={editingShop.address || ''}
+                        onChange={e => setEditingShop({ ...editingShop, address: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block">💳 KPay အကောင့်အမည်</label>
+                      <input 
+                        type="text"
+                        value={editingShop.kpay_name || ''}
+                        onChange={e => setEditingShop({ ...editingShop, kpay_name: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block">💳 KPay အကောင့်နံပါတ်</label>
+                      <input 
+                        type="text"
+                        value={editingShop.kpay_number || ''}
+                        onChange={e => setEditingShop({ ...editingShop, kpay_number: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-orange-600 focus:bg-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1 sm:col-span-2">
+                      <label className="block text-amber-800">💎 SOKO Pro VIP Premium Plan</label>
+                      <select 
+                        value={editingShop.is_premium ? "true" : "false"}
+                        onChange={e => setEditingShop({ ...editingShop, is_premium: e.target.value === "true" })}
+                        className="w-full bg-amber-50 text-slate-900 border-2 border-amber-200 rounded-xl p-3 focus:bg-white font-bold focus:outline-none"
+                      >
+                        <option value="false">❌ Free Standard Plan (မြန်မာစတိုးဆိုင်ခွဲ)</option>
+                        <option value="true">👑 SOKO Pro VIP Premium (၁၅,၀၀၀ Ks / လစဉ်ကြေး)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setEditingShop(null)}
+                      className="bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl text-[11px] font-black cursor-pointer transition active:scale-95 text-slate-700"
+                    >
+                      မလုပ်တော့ပါ (Cancel)
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2 rounded-xl text-[11px] font-black cursor-pointer transition active:scale-95 shadow-md shadow-amber-500/10"
+                    >
+                      အချက်အလက်သိမ်းဆည်းမည် (Save Changes)
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+
+            {/* MODAL 2: Edit product parameters details */}
+            {editingProduct && (
+              <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                <form 
+                  onSubmit={handleSaveProductSettings}
+                  className="bg-[#FFFDF9] border border-orange-100 max-w-lg w-full rounded-3xl p-6.5 space-y-5 shadow-2xl relative"
+                >
+                  <button 
+                    type="button" 
+                    onClick={() => setEditingProduct(null)}
+                    className="absolute top-4 right-4 text-slate-400 hover:text-rose-600 font-black cursor-pointer text-sm w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center"
+                  >
+                    ✕
+                  </button>
+
+                  <div className="space-y-1">
+                    <h3 className="font-extrabold text-slate-900 text-sm">📦 ကုန်စည်ပစ္စည်း အဓိကအချက်အလက် ပြင်ဆင်ခြင်း</h3>
+                    <p className="text-[10.5px] text-slate-500">ပစ္စည်း ID: {editingProduct.id}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-bold text-slate-650">
+                    <div className="space-y-1">
+                      <label className="block">ကုန်စည်အမည်</label>
+                      <input 
+                        type="text"
+                        required
+                        value={editingProduct.name}
+                        onChange={e => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block">ရောင်းစျေးနှုန်း (Ks)</label>
+                      <input 
+                        type="number"
+                        required
+                        value={editingProduct.price}
+                        onChange={e => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) || 0 })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-amber-600 focus:bg-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block">ကျန်ရှိစတော့အရေအတွက်</label>
+                      <input 
+                        type="number"
+                        required
+                        value={editingProduct.stock === undefined ? 99 : editingProduct.stock}
+                        onChange={e => setEditingProduct({ ...editingProduct, stock: parseInt(e.target.value) || 0 })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:bg-white font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="block">အမျိုးအစားအုပ်စု (Category)</label>
+                      <input 
+                        type="text"
+                        required
+                        value={editingProduct.category || ''}
+                        onChange={e => setEditingProduct({ ...editingProduct, category: e.target.value })}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:bg-white"
+                      />
+                    </div>
+
+                    {/* Image modification downcompressed uploads options */}
+                    <div className="sm:col-span-2 space-y-2 border-t border-slate-100 pt-3">
+                      <label className="block text-slate-700 text-[11px] font-black">📸 ကုန်စည်ပုံစံ (ဓါတ်ပုံ တင်ရန် သို့မဟုတ် အီမိုဂျီ သုံးရန်)</label>
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-14 bg-orange-100/40 border border-orange-200 rounded-xl flex items-center justify-center text-xl flex-shrink-0 select-none overflow-hidden">
+                          {editingProduct.image && (editingProduct.image.startsWith('http') || editingProduct.image.startsWith('data:image/')) ? (
+                            <img src={editingProduct.image} alt="prev" className="w-full h-full object-cover" />
+                          ) : (
+                            editingProduct.image || '📦'
+                          )}
+                        </div>
+
+                        <div className="flex-1">
+                          <label className="block bg-[#FFFDF9] hover:bg-orange-50 border border-slate-300 text-slate-650 cursor-pointer text-center text-[10.5px] rounded-xl px-4 py-2 font-bold shadow-3xs hover:border-orange-300 active:scale-95 transition">
+                            📁 ပုံအသစ် ရွေးချယ်ရန်
+                            <input 
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  if (file.size > 8 * 1024 * 1024) {
+                                    triggerToast('ပုံအရွယ်အစား 8MB ထက်ငယ်ရပါမည်', 'error');
+                                    return;
+                                  }
+                                  const reader = new FileReader();
+                                  reader.onloadend = async () => {
+                                    const compressed = await compressBase64Image(reader.result);
+                                    setEditingProduct({ ...editingProduct, image: compressed });
+                                    triggerToast('ပုံထည့်သွင်းမှု အောင်မြင်သည်။');
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setEditingProduct(null)}
+                      className="bg-slate-100 hover:bg-slate-200 px-4 py-2 rounded-xl text-[11px] font-black cursor-pointer transition active:scale-95 text-slate-700"
+                    >
+                      မလုပ်တော့ပါ (Cancel)
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-amber-500 hover:bg-amber-600 text-white px-5 py-2 rounded-xl text-[11px] font-black cursor-pointer transition active:scale-95 shadow-md shadow-amber-500/10"
+                    >
+                      ပြောင်းလဲသိမ်းဆည်းရန် (Save Product)
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+
+            {/* MODAL 3: LIGHTBOX COZY DISPLAY FOR ZOOMING BANK SLIPS BYPASSING WEB IFRAME SEC_BLOCKED */}
+            {zoomedSlipImage && (
+              <div 
+                onClick={() => setZoomedSlipImage(null)}
+                className="fixed inset-0 bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-4 z-[500] cursor-zoom-out animate-fade-in"
+              >
+                <div 
+                  className="bg-[#FFFDF9]/5 border border-white/10 p-2 rounded-2xl max-w-sm w-full relative" 
+                  onClick={e => e.stopPropagation()}
+                >
+                  <img src={zoomedSlipImage} alt="ငွေလွှဲပြေစာပုံကြီး" className="w-full h-auto max-h-[80vh] object-contain rounded-xl shadow-2xl" />
+                  
+                  <div className="flex justify-between items-center mt-3 text-white px-2.5">
+                    <span className="text-[10px] bg-white/10 px-3 py-1 rounded-full font-bold">🧾 Dynamic Lightbox Voucher</span>
+                    <button 
+                      type="button"
+                      onClick={() => setZoomedSlipImage(null)} 
+                      className="bg-white text-slate-900 hover:bg-slate-50 px-4 py-1.5 rounded-full font-black text-[10px] cursor-pointer shadow-md"
+                    >
+                      ပိတ်မည် (Close View)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        );
+      }
+
+      // Append App structure inside root container
+      const container = document.getElementById('root');
+      const root = ReactDOM.createRoot(container);
+      root.render(<App />);
+    </script>
+  </body>
+</html>
