@@ -56,6 +56,91 @@
   <body class="bg-[#FFFDF9] text-slate-800 antialiased selection:bg-amber-100 selection:text-amber-900 min-h-screen">
     <div id="root"></div>
 
+    <!-- Native Firebase v10 Modular SDK wrapper for custom/named database connectivity in the admin panel -->
+    <script type="module">
+      import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+      import { initializeFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+      const config = {
+        projectId: "gen-lang-client-0725717335",
+        appId: "1:754521372608:web:b7cfdfe809b4f9c2ac3a25",
+        apiKey: "AIzaSyBTeA1cuimlH-kqkQXuB8Ju8RP0f7U5Lmo",
+        authDomain: "gen-lang-client-0725717335.firebaseapp.com",
+        storageBucket: "gen-lang-client-0725717335.firebasestorage.app",
+        messagingSenderId: "754521372608",
+        firestoreDatabaseId: "ai-studio-f7002209-2c0a-4f3d-a630-bc6e058fd98d"
+      };
+
+      try {
+        const app = getApps().length === 0 ? initializeApp(config) : getApp();
+        const rawDb = initializeFirestore(app, {
+          experimentalForceLongPolling: true,
+        }, config.firestoreDatabaseId);
+
+        window.db = {
+          settings(conf) {
+            console.log("Settings applied via shim:", conf);
+          },
+          collection(collectionName) {
+            return {
+              onSnapshot(onNext, onError) {
+                const q = query(collection(rawDb, collectionName));
+                return onSnapshot(q, (snapshot) => {
+                  const adaptedSnapshot = {
+                    forEach(callback) {
+                      snapshot.docs.forEach((d) => {
+                        callback({
+                          data() { return d.data(); },
+                          id: d.id
+                        });
+                      });
+                    },
+                    docChanges() {
+                      return snapshot.docChanges().map((change) => ({
+                        type: change.type,
+                        doc: {
+                          data() { return change.doc.data(); },
+                          id: change.doc.id
+                        }
+                      }));
+                    }
+                  };
+                  onNext(adaptedSnapshot);
+                }, onError);
+              },
+              doc(docId) {
+                const docRef = doc(rawDb, collectionName, docId);
+                return {
+                  onSnapshot(onNext, onError) {
+                    return onSnapshot(docRef, (docSnap) => {
+                      const adaptedDoc = {
+                        exists: docSnap.exists(),
+                        data() { return docSnap.data(); },
+                        id: docSnap.id
+                      };
+                      onNext(adaptedDoc);
+                    }, onError);
+                  },
+                  async set(data, options) {
+                    return setDoc(docRef, data, options);
+                  },
+                  async update(data) {
+                    return updateDoc(docRef, data);
+                  },
+                  async delete() {
+                    return deleteDoc(docRef);
+                  }
+                };
+              }
+            };
+          }
+        };
+        console.log("🎯 SOKO Custom Named Database Modular Wrapper Loaded Successfully!");
+      } catch (err) {
+        console.error("Failed to load modular named database shim:", err);
+      }
+    </script>
+
     <script type="text/babel">
       const { useState, useEffect, useRef } = React;
 
@@ -81,10 +166,12 @@
        const auth = firebase.auth();
  
        // Connect to SOKO custom Firestore database synchronously using loaded Compat SDK
-       let db;
+       let db = window.db;
        try {
-         // Attempt to get the named database instance
-         db = firebase.firestore(app, firebaseConfig.firestoreDatabaseId);
+         if (!db) {
+           // Attempt to get the named database instance
+           db = firebase.firestore(app, firebaseConfig.firestoreDatabaseId);
+         }
          console.log("🚀 SOKO Named Database Compat initialized!");
        } catch (e) {
          console.error('Firestore named database instance fetch fail, trying fallback:', e);
@@ -224,6 +311,7 @@
         
         const [suggestions, setSuggestions] = useState([]);
         const [loadingSuggestions, setLoadingSuggestions] = useState(true);
+        const [suggestionSortOrder, setSuggestionSortOrder] = useState('newest');
 
         const [premiumDates, setPremiumDates] = useState({});
 
@@ -1220,6 +1308,38 @@
 
                   {/* Feed container */}
                   <div className="space-y-4">
+                    {/* Dynamic Sorting Selection & Stats Header */}
+                    {!loadingSuggestions && suggestions.length > 0 && (
+                      <div className="bg-slate-900 text-white p-4.5 rounded-2.5xl flex flex-col sm:flex-row justify-between items-center gap-3.5 shadow-sm border border-slate-800 animate-fade-in">
+                        <div className="text-left space-y-0.5">
+                          <span className="text-[10px] text-amber-400 font-extrabold uppercase tracking-wide">Suggestions Feed Control Board</span>
+                          <h4 className="text-xs font-bold text-slate-200">အကြံပြုချက်များကို အချိန်မှတ်တမ်းအလိုက် စဉ်ဆက်မပြတ် ကြည့်ရှုမည့် စနစ်</h4>
+                        </div>
+                        <div className="flex gap-2.5">
+                          <button
+                            onClick={() => setSuggestionSortOrder('newest')}
+                            className={`px-3 py-1.5 rounded-xl text-[10.5px] font-extrabold transition-all duration-150 ${
+                              suggestionSortOrder === 'newest'
+                                ? 'bg-amber-500 text-white shadow-3xs'
+                                : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-705'
+                            }`}
+                          >
+                            🔽 အသစ်ဆုံးမှ အဟောင်းဆုံးသို့
+                          </button>
+                          <button
+                            onClick={() => setSuggestionSortOrder('oldest')}
+                            className={`px-3 py-1.5 rounded-xl text-[10.5px] font-extrabold transition-all duration-150 ${
+                              suggestionSortOrder === 'oldest'
+                                ? 'bg-amber-500 text-white shadow-3xs'
+                                : 'bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 border border-slate-705'
+                            }`}
+                          >
+                            🔼 အဟောင်းဆုံးမှ အသစ်ဆုံးသို့
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {loadingSuggestions ? (
                       <div className="text-center py-12 bg-white rounded-3xl border border-slate-100 shadow-3xs space-y-3">
                         <div className="w-8 h-8 border-3 border-slate-800 border-t-transparent rounded-full animate-spin mx-auto"></div>
@@ -1231,53 +1351,74 @@
                         <p>ဝင်လာသော အကြံပြုချက် သို့မဟုတ် တောင်းဆိုမှုများ လတ်တလော မတွေ့ရှိရသေးပါခင်ဗျာ။</p>
                         <p className="text-[10px] text-zinc-400 font-semibold font-mono">Ready to receive merchant suggestions via Firestore</p>
                       </div>
-                    ) : (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {suggestions.map((sug) => (
-                          <div key={sug.id} className="bg-white border-2 border-slate-100 p-5 rounded-3xl flex flex-col justify-between gap-4.5 shadow-3xs hover:border-slate-350 transition-all">
-                            <div className="space-y-3">
-                              <div className="flex justify-between items-start flex-wrap gap-2">
-                                <div className="space-y-0.5">
-                                  <span className="text-xs font-black text-slate-900 block">👤 {sug.sender_name || 'အမည်မသိ ဆိုင်ရှင်'}</span>
-                                  <span className="text-[10px] text-slate-450 font-bold font-mono block">✉️ {sug.sender_email || 'N/A'}</span>
+                    ) : (() => {
+                      // Original chronological sort to assign strict permanent sequence numbers
+                      const chronologicalList = [...suggestions].sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime());
+                      
+                      // Active display list based on selected sort order
+                      const displayList = [...suggestions].sort((a, b) => {
+                        const timeA = new Date(a.created_at || 0).getTime();
+                        const timeB = new Date(b.created_at || 0).getTime();
+                        return suggestionSortOrder === 'newest' ? timeB - timeA : timeA - timeB;
+                      });
+
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {displayList.map((sug) => {
+                            const sequenceIndex = chronologicalList.findIndex(s => s.id === sug.id) + 1;
+                            return (
+                              <div key={sug.id} className="bg-white border-2 border-slate-100 p-5 rounded-3xl flex flex-col justify-between gap-4.5 shadow-3xs hover:border-slate-350 transition-all relative overflow-hidden">
+                                <div className="absolute -top-1 -right-1 w-14 h-14 bg-amber-500/5 rounded-full filter blur-xl"></div>
+                                <div className="space-y-3">
+                                  <div className="flex justify-between items-start flex-wrap gap-2">
+                                    <div className="space-y-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-[9.5px] bg-amber-500 text-white font-mono px-2 py-0.5 rounded-md font-black leading-none shrink-0">
+                                          အမှတ်စဉ် #{sequenceIndex}
+                                        </span>
+                                        <span className="text-xs font-black text-slate-900 block">👤 {sug.sender_name || 'အမည်မသိ ဆိုင်ရှင်'}</span>
+                                      </div>
+                                      <span className="text-[10px] text-slate-450 font-bold font-mono block">✉️ {sug.sender_email || 'N/A'}</span>
+                                    </div>
+                                    <span className="text-[9px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-black uppercase tracking-wider font-mono">
+                                      {sug.created_at ? new Date(sug.created_at).toLocaleString('en-US', { hour12: true }) : 'လုပ်ဆောင်ချိန် N/A'}
+                                    </span>
+                                  </div>
+
+                                  <div className="p-3.5 bg-slate-50 border border-slate-150 rounded-2xl relative">
+                                    <p className="text-xs text-slate-700 leading-relaxed font-extrabold whitespace-pre-wrap select-all font-sans">
+                                      {sug.content}
+                                    </p>
+                                  </div>
                                 </div>
-                                <span className="text-[9px] bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-black uppercase tracking-wider font-mono">
-                                  {sug.created_at ? new Date(sug.created_at).toLocaleString('en-US', { hour12: true }) : 'လုပ်ဆောင်ချိန် N/A'}
-                                </span>
-                              </div>
 
-                              <div className="p-3.5 bg-slate-50 border border-slate-150 rounded-2xl">
-                                <p className="text-xs text-slate-700 leading-relaxed font-extrabold whitespace-pre-wrap select-all font-sans">
-                                  {sug.content}
-                                </p>
+                                <div className="pt-3.5 border-t border-slate-50 flex justify-between items-center text-xs">
+                                  <span className="text-[10px] text-emerald-650 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full font-black">
+                                    ● Received & Synced
+                                  </span>
+                                  
+                                  <button
+                                    onClick={async () => {
+                                      if (confirm('ဤအကြံပြုချက်စာသားအား ဖျက်သိမ်းလိုပါသလားခင်ဗျာ။')) {
+                                        try {
+                                          await db.collection('suggestions').doc(sug.id).delete();
+                                          triggerToast('🗑️ အကြံပြုချက်ကို အောင်မြင်စွာ ဖျက်သိမ်းပြီးပါပြီ။', 'success');
+                                        } catch (err) {
+                                          triggerToast('ဖျက်သိမ်းမှုစနစ် ချို့ယွင်းသွားပါသည်။', 'error');
+                                        }
+                                      }
+                                    }}
+                                    className="text-rose-600 hover:text-rose-700 text-[10px] font-black cursor-pointer hover:underline"
+                                  >
+                                    ✕ ပြကွက်မှဖျက်မည်
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-
-                            <div className="pt-3.5 border-t border-slate-50 flex justify-between items-center text-xs">
-                              <span className="text-[10px] text-emerald-650 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full font-black">
-                                ● Received & Synced
-                              </span>
-                              
-                              <button
-                                onClick={async () => {
-                                  if (confirm('ဤအကြံပြုချက်စာသားအား ဖျက်သိမ်းလိုပါသလားခင်ဗျာ။')) {
-                                    try {
-                                      await db.collection('suggestions').doc(sug.id).delete();
-                                      triggerToast('🗑️ အကြံပြုချက်ကို အောင်မြင်စွာ ဖျက်သိမ်းပြီးပါပြီ။', 'success');
-                                    } catch (err) {
-                                      triggerToast('ဖျက်သိမ်းမှုစနစ် ချို့ယွင်းသွားပါသည်။', 'error');
-                                    }
-                                  }
-                                }}
-                                className="text-rose-600 hover:text-rose-700 text-[10px] font-black cursor-pointer hover:underline"
-                              >
-                                ✕ ပြကွက်မှဖျက်မည်
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

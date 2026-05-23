@@ -33,17 +33,28 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only intercept same-origin static requests
-  if (event.request.url.startsWith(self.location.origin)) {
+  // Only handle same-origin GET requests
+  if (event.request.method === 'GET' && event.request.url.startsWith(self.location.origin)) {
     event.respondWith(
-      caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        return fetch(event.request).catch(() => {
-          // Silent offline fallback
-        });
-      })
+      fetch(event.request)
+        .then((networkResponse) => {
+          // If valid response, clone and update cache
+          if (networkResponse && networkResponse.status === 200) {
+            const cacheCopy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, cacheCopy);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          // Network failed (offline), try cache fallback
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+          });
+        })
     );
   }
 });
