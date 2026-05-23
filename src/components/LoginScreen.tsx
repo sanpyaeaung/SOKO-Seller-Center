@@ -1,5 +1,5 @@
-import React from 'react';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import React, { useEffect, useState } from 'react';
+import { signInWithPopup, signInWithRedirect, getRedirectResult, GoogleAuthProvider } from 'firebase/auth';
 import { auth } from '../firebase';
 
 interface LoginScreenProps {
@@ -7,15 +7,40 @@ interface LoginScreenProps {
 }
 
 export default function LoginScreen({ onLoginError }: LoginScreenProps) {
+  const [loadingRedirect, setLoadingRedirect] = useState(false);
+
+  useEffect(() => {
+    setLoadingRedirect(true);
+    getRedirectResult(auth)
+      .then((result) => {
+        if (result) {
+          console.log('Redirect sign-in success:', result.user);
+        }
+      })
+      .catch((err: any) => {
+        console.error('Redirect Auth Error:', err);
+        onLoginError(err.message || 'Redirect Sign-in failed');
+      })
+      .finally(() => {
+        setLoadingRedirect(false);
+      });
+  }, [onLoginError]);
+
   const handleGoogleSignIn = async () => {
     const provider = new GoogleAuthProvider();
-    // Force select account to ease testing
     provider.setCustomParameters({ prompt: 'select_account' });
     try {
       await signInWithPopup(auth, provider);
     } catch (err: any) {
-      console.error('Google Auth Error:', err);
-      onLoginError(err.message || 'ဂူဂဲလ်အကောင့်ဖြင့် ဝင်ရန် ကြိုးပမ်းမှု မအောင်မြင်ပါ');
+      console.warn('Google Popup blocked or failed, initiating Redirect fallback...', err);
+      try {
+        setLoadingRedirect(true);
+        await signInWithRedirect(auth, provider);
+      } catch (redirectErr: any) {
+        console.error('Google Redirect Error:', redirectErr);
+        onLoginError(redirectErr.message || 'Google Sign-in failed');
+        setLoadingRedirect(false);
+      }
     }
   };
 
@@ -62,28 +87,35 @@ export default function LoginScreen({ onLoginError }: LoginScreenProps) {
         {/* Google Authentication Action Button */}
         <button
           id="btn-google-login"
+          disabled={loadingRedirect}
           onClick={handleGoogleSignIn}
-          className="w-full flex items-center justify-center gap-2 bg-white hover:bg-orange-50 text-slate-700 hover:text-slate-900 border-2 border-orange-100 font-bold py-2 px-3 text-xs rounded-lg shadow-xs transition duration-200 active:scale-98 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-orange-500"
+          className="w-full flex items-center justify-center gap-2 bg-white hover:bg-orange-50 text-slate-700 hover:text-slate-900 border-2 border-orange-100 font-bold py-2.5 px-3 text-xs rounded-xl shadow-xs transition duration-200 active:scale-98 cursor-pointer disabled:opacity-50 focus:outline-hidden focus:ring-2 focus:ring-orange-500"
         >
-          <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
-            <path
-              fill="#EA4335"
-              d="M12 5.04c1.62 0 3.08.56 4.22 1.65l3.15-3.15C17.45 1.68 14.93 1 12 1 7.35 1 3.37 3.65 1.41 7.55l3.79 2.94C6.1 7.51 8.83 5.04 12 5.04z"
-            />
-            <path
-              fill="#4285F4"
-              d="M23.49 12.27c0-.81-.07-1.59-.2-2.35H12v4.45h6.44c-.28 1.48-1.12 2.73-2.38 3.58l3.69 2.86c2.16-1.99 3.74-4.92 3.74-8.54z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.2 14.49c-.23-.69-.36-1.43-.36-2.2c0-.77.13-1.51.36-2.2L1.41 7.15C.51 8.95 0 10.94 0 13c0 2.06.51 4.05 1.41 5.85l3.79-2.94-1-.42z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.69-2.86c-1.03.69-2.35 1.1-4.27 1.1-3.17 0-5.9-2.47-6.8-5.45L1.41 15.8C3.37 19.7 7.35 22.3 12 23z"
-            />
-          </svg>
-          <span className="text-xs">Google အကောင့်ဖြင့် ဝင်မည်</span>
+          {loadingRedirect ? (
+            <div className="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
+              <path
+                fill="#EA4335"
+                d="M12 5.04c1.62 0 3.08.56 4.22 1.65l3.15-3.15C17.45 1.68 14.93 1 12 1 7.35 1 3.37 3.65 1.41 7.55l3.79 2.94C6.1 7.51 8.83 5.04 12 5.04z"
+              />
+              <path
+                fill="#4285F4"
+                d="M23.49 12.27c0-.81-.07-1.59-.2-2.35H12v4.45h6.44c-.28 1.48-1.12 2.73-2.38 3.58l3.69 2.86c2.16-1.99 3.74-4.92 3.74-8.54z"
+              />
+              <path
+                fill="#FBBC05"
+                d="M5.2 14.49c-.23-.69-.36-1.43-.36-2.2c0-.77.13-1.51.36-2.2L1.41 7.15C.51 8.95 0 10.94 0 13c0 2.06.51 4.05 1.41 5.85l3.79-2.94-1-.42z"
+              />
+              <path
+                fill="#34A853"
+                d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.69-2.86c-1.03.69-2.35 1.1-4.27 1.1-3.17 0-5.9-2.47-6.8-5.45L1.41 15.8C3.37 19.7 7.35 22.3 12 23z"
+              />
+            </svg>
+          )}
+          <span className="text-xs">
+            {loadingRedirect ? 'လုံခြုံစွာ ဝင်ရောက်နေဆဲဖြစ်ပါသည် (Signing in...)' : 'Google အကောင့်ဖြင့် ဝင်မည်'}
+          </span>
         </button>
 
         {/* Footer info banner */}

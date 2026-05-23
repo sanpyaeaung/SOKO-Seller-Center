@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { User, signOut } from 'firebase/auth';
 import { auth, db } from '../firebase';
 import { ShopSettings } from '../types';
-import { collection, query, where, getDocs, setDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs, setDoc, doc, updateDoc } from 'firebase/firestore';
+import { compressBase64Image } from '../utils';
 
 interface ShopSettingsViewProps {
   settings: ShopSettings;
@@ -38,6 +39,43 @@ export default function ShopSettingsView({
   const [suggestionText, setSuggestionText] = useState('');
   const [sugSubmitting, setSugSubmitting] = useState(false);
 
+  // Premium request states
+  const [premiumSlipRaw, setPremiumSlipRaw] = useState('');
+  const [premiumReqText, setPremiumReqText] = useState('');
+  const [premiumReqSubmitting, setPremiumReqSubmitting] = useState(false);
+
+  const isPremiumActive = settings.is_premium === true && (settings.premium_until ? new Date(settings.premium_until).getTime() > Date.now() : true);
+
+  const handlePremiumRequestSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!premiumSlipRaw) {
+      onShowToast('⚠️ ကျေးဇူးပြု၍ ငွေလွှဲပြေစာ ပုံရိပ်ကို အရင်ရွေးချယ်ပေးပါရန်။', 'error');
+      return;
+    }
+    setPremiumReqSubmitting(true);
+    try {
+      const shopId = activeShopUid || user.uid;
+      const docRef = doc(db, 'shop_settings', shopId);
+      
+      const compressedSlip = await compressBase64Image(premiumSlipRaw);
+      await setDoc(docRef, {
+        premium_requested: true,
+        premium_request_payment_slip: compressedSlip,
+        premium_request_text: premiumReqText || 'No extra message',
+        premium_request_date: new Date().toISOString()
+      }, { merge: true });
+
+      onShowToast('💎 Premium Upgrade လျှောက်ထားမှုအား အောင်မြင်စွာ တင်သွင်းပြီးပါပြီ။ Admin မှ မကြာမီစစ်ဆေးပေးပါမည်။', 'success');
+      setPremiumSlipRaw('');
+      setPremiumReqText('');
+    } catch (err) {
+      console.error(err);
+      onShowToast('တောင်းဆိုချက် ပို့ဆောင်မှု မအောင်မြင်ပါ၊ ထပ်မံကြိုးစားကြည့်ပါခင်ဗျာ။', 'error');
+    } finally {
+      setPremiumReqSubmitting(false);
+    }
+  };
+
   // Load branches from Firestore
   const loadBranches = async () => {
     if (!user) return;
@@ -67,6 +105,10 @@ export default function ShopSettingsView({
   // Branch creation
   const handleCreateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isPremiumActive) {
+      onShowToast('👑 ဆိုင်ခွဲသစ်တိုးချဲ့ခွင့်သည် SOKO PRO VIP Premium သီးသန့် ဝန်ဆောင်မှု ဖြစ်ပါသည်။ ဆက်တင်စာမျက်နှာထိပ်ရှိ Premium Upgrade ကို ဝယ်ယူပေးပါရန်။', 'error');
+      return;
+    }
     const isBranchOrStaffMode = (user.uid === 'staff_user') || (activeShopUid !== user.uid) || (!!settings.parent_uid);
     if (isBranchOrStaffMode) {
       onShowToast('⚠️ ဆိုင်ခွဲလင့်ခ်မှ ဆိုင်ခွဲသစ်တိုးချဲ့ခွင့် မရှိပါခင်ဗျာ။', 'error');
@@ -221,6 +263,114 @@ export default function ShopSettingsView({
       <div>
         <h3 className="font-black text-slate-900 text-base">စတိုးဆိုင် ဆက်တင်များ</h3>
         <p className="text-xs text-slate-505 font-medium">ပြေစာထုတ်ယူမှု စနစ်နမူနာများနှင့် KBZPay/WavePay ငွေချေလှမ်းမှုအချက်အလက်များ ပြုပြင်ခြင်း</p>
+      </div>
+
+      {/* 👑 SOKO PRO VIP PREMIUM SUBSCRIPTION STATUS SECTION */}
+      <div className="border bg-gradient-to-br from-amber-500/5 via-[#FFFDF5] to-amber-500/5 border-amber-250 p-5 rounded-2.5xl space-y-4 shadow-3xs">
+        <div className="flex justify-between items-start gap-3 flex-wrap">
+          <div className="flex gap-3">
+            <span className="text-3xl bg-amber-100 border border-amber-200 w-12 h-12 rounded-2xl flex items-center justify-center animate-pulse select-none">
+              💎
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="font-extrabold text-slate-900 text-sm leading-snug">SOKO Pro VIP Premium Subscription</h4>
+                {isPremiumActive ? (
+                  <span className="bg-emerald-600 text-white text-[8px] font-black tracking-tight px-2 py-0.5 rounded-full uppercase animate-pulse">ACTIVE PRO</span>
+                ) : (
+                  <span className="bg-slate-200 text-slate-700 text-[8px] font-black tracking-tight px-2 py-0.5 rounded-full uppercase">NORMAL FREE</span>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-500 font-bold mt-1">
+                {isPremiumActive 
+                  ? `💎 လူကြီးမင်း၏စတိုးဆိုင်သည် SOKO PRO VIP Premium ဖြစ်ပြီး ဖြစ်ပါသည်။ (သက်တမ်းကုန်ဆုံးမည့်ရက် - ${settings.premium_until ? new Date(settings.premium_until).toLocaleDateString() : 'မသတ်မှတ်ထားပါ'})` 
+                  : 'စတိုးဆိုင်ခွဲများအကန့်အသတ်မရှိဖွင့်ခြင်းနှင့် 💎 Premium VIP Badge ရရှိရန် SOKO Pro VIP သို့မြှင့်တင်ပါ'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* If premium is already active */}
+        {isPremiumActive ? (
+          <div className="bg-emerald-50/50 border border-emerald-200 p-3.5 rounded-xl text-[11px] font-bold text-emerald-800 leading-normal">
+            🎉 ဂုဏ်ယူပါသည်! လူကြီးမင်းသည် Premium ရရှိထားသဖြင့် ဆိုင်ခွဲများစုံလင်စွာတိုးချဲ့နိုင်ပြီး၊ ပြေစာများထုတ်ယူရာတွင် “စတိုးဆိုင်ခွဲ Premium” သီးသန့် အကျိုးကျေးဇူးများကို ရရှိစေမည်ဖြစ်ပါသည်။
+          </div>
+        ) : settings.premium_requested ? (
+          <div className="bg-amber-50/70 border border-amber-250 p-3.5 rounded-xl text-[11px] font-semibold text-amber-800 leading-normal flex items-center gap-2.5 animate-pulse">
+            <span className="text-lg">⏳</span>
+            <div>
+              <p className="font-black">Premium Upgrade တောင်းဆိုမှုအား စစ်ဆေးနေပါသည်...</p>
+              <p className="text-[10px] text-amber-700 mt-0.5">ငွေလွှဲပြေစာနှင့် လွှဲပြောင်းမှုကို စူပါအက်ဒမင်မှ စစ်ဆေးပြီးပါက premium features များကို တိုက်ရိုက်စတင်အသုံးပြုခွင့်ပေးပါမည်။</p>
+            </div>
+          </div>
+        ) : (
+          /* Premium request upgrade form */
+          <form onSubmit={handlePremiumRequestSubmit} className="bg-white border border-amber-200 rounded-xl p-4.5 space-y-3.5 text-xs font-bold text-slate-700">
+            <div className="space-y-1">
+              <span className="text-[10.5px] font-black text-amber-900 block uppercase">💳 SOKO Admin သို့ ငွေပေးချေရန်နည်းလမ်း</span>
+              <div className="p-3 bg-slate-50 border border-slate-250/50 rounded-lg text-[10.5px] leading-relaxed text-slate-800 font-bold">
+                <p>📍 KBZPay - <span className="font-mono text-orange-600">09955123456</span> (U Kyaw Kyaw)</p>
+                <p>📍 WavePay - <span className="font-mono text-orange-600">09955123456</span> (U Kyaw Kyaw)</p>
+                <p className="text-[9.5px] text-[#815500] mt-1">* လစဉ်ကြေး - ၁၅,၀၀၀ ကျပ် / အထူးနှုန်းများ</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div className="space-y-1">
+                <label className="block text-slate-500 font-bold text-[10px]">📷 ငွေလွှဲပြေစာ screenshot တင်သွင်းရန် *</label>
+                <div className="flex items-center gap-2">
+                  <input 
+                    type="file"
+                    required
+                    accept="image/*"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setPremiumSlipRaw(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="text-[10px] file:bg-amber-50 file:border-amber-200 file:rounded-lg file:px-3 file:py-1.5 file:text-amber-800 file:font-black text-slate-500 cursor-pointer flex-1"
+                  />
+                  {premiumSlipRaw && (
+                    <img src={premiumSlipRaw} className="w-10 h-10 object-cover rounded-lg border border-amber-300" alt="slip preview" />
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-slate-500 font-bold text-[10px]">✏️ ငွေလွှဲမှတ်ချက်/Transaction ID/လအမည်</label>
+                <input 
+                  type="text"
+                  placeholder="ဥပမာ- Transaction ID 123456 သို့မဟုတ် (ဇွန်လအတွက်)"
+                  value={premiumReqText}
+                  onChange={e => setPremiumReqText(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-250/50 rounded-lg p-2.5 text-slate-800 text-xs font-bold focus:outline-none"
+                />
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              disabled={premiumReqSubmitting}
+              className="w-full bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 text-white font-black py-2.5 rounded-xl text-[11px] flex items-center justify-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition"
+            >
+              {premiumReqSubmitting ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  <span>တင်ပြနေပါသည်...</span>
+                </>
+              ) : (
+                <>
+                  <span>💎 Premium တောင်းဆိုချက် တင်သွင်းမည် (Request Upgrade)</span>
+                </>
+              )}
+            </button>
+          </form>
+        )}
       </div>
 
       <form onSubmit={handleSubmitSettings} className="space-y-6 max-w-xl text-xs font-bold text-slate-700">
@@ -573,14 +723,29 @@ export default function ShopSettingsView({
             </p>
           </div>
         ) : (
-          <div className="p-5.5 bg-slate-50 rounded-2.5xl border border-slate-200 text-slate-800 space-y-4">
+          <div className={`p-5.5 rounded-2.5xl border transition-all space-y-4 relative ${
+            isPremiumActive 
+              ? 'bg-slate-50 border-slate-200 text-slate-800' 
+              : 'bg-amber-50/15 border-amber-200 text-slate-700 opacity-90'
+          }`}>
             <div className="flex items-center gap-2">
-              <span className="text-lg">➕</span>
+              <span className="text-lg">{isPremiumActive ? '➕' : '🔒'}</span>
               <div>
-                <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-wide">တိုးချဲ့ဆိုင်ခွဲအသစ် ဖွင့်လှစ်ရန်ပုံစံ (Add New Branch Store)</h5>
+                <h5 className="text-[11px] font-black text-slate-900 uppercase tracking-wide">
+                  تိုးချဲ့ဆိုင်ခွဲအသစ် ဖွင့်လှစ်ရန်ပုံစံ (Add New Branch Store) {!isPremiumActive && ' (PRO VIP သီးသန့်)'}
+                </h5>
                 <p className="text-[9px] text-zinc-400 font-bold">ပင်မဆိုင်ကြီး၏ ငွေကိုင်စနစ်များနှင့် ဘဏ်အကောင့်များကို အလိုအလျောက်ကူးယူပေးပါမည်။</p>
               </div>
             </div>
+
+            {!isPremiumActive && (
+              <div className="bg-amber-500/10 border border-amber-300 p-4 rounded-xl text-center space-y-1 my-2">
+                <p className="text-xs font-black text-amber-950">👑 SOKO Pro VIP Feature Locked</p>
+                <p className="text-[10px] text-amber-900 font-bold leading-relaxed max-w-sm mx-auto">
+                  ဆိုင်ခွဲအသစ်တိုးချဲ့ခြင်းစနစ်သည် 💎 Premium ဝယ်ယူအသုံးပြုသူများသာ သုံးစွဲနိုင်သော feature ဖြစ်ပါသည်။ စနစ်ကိုအသုံးပြုရန် အပေါ်ရှိ Upgrade Form မှာ လျှောက်ထားပေးပါ။
+                </p>
+              </div>
+            )}
 
             <form onSubmit={handleCreateBranch} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5 text-left">
@@ -588,10 +753,11 @@ export default function ShopSettingsView({
                 <input
                   type="text"
                   required
+                  disabled={!isPremiumActive}
                   placeholder="ဥပမာ- ရန်ကင်းဆိုင်ခွဲ / တာမွေဆိုင်ခွဲ"
                   value={newBranchName}
                   onChange={e => setNewBranchName(e.target.value)}
-                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-orange-400"
+                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-orange-400 disabled:bg-slate-100 disabled:text-slate-400"
                 />
               </div>
 
@@ -600,10 +766,11 @@ export default function ShopSettingsView({
                 <input
                   type="text"
                   required
+                  disabled={!isPremiumActive}
                   placeholder="ဥပမာ - myanmarsushi-ygn"
                   value={newBranchSlug}
                   onChange={e => setNewBranchSlug(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
-                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white font-mono focus:outline-none focus:border-orange-400"
+                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white font-mono focus:outline-none focus:border-orange-400 disabled:bg-slate-100 disabled:text-slate-400"
                 />
               </div>
 
@@ -611,10 +778,11 @@ export default function ShopSettingsView({
                 <label className="text-[10px] font-black text-slate-700 block">📞 ဆိုင်ခွဲဆက်သွယ်ရန်ဖုန်း (Branch Phone)</label>
                 <input
                   type="text"
+                  disabled={!isPremiumActive}
                   placeholder="ဥပမာ - ၀၉၁၂၃၄၅၆၇၈၉ (ချန်ထားက ပင်မဆိုင်ဖုန်းသုံးမည်)"
                   value={newBranchPhone}
                   onChange={e => setNewBranchPhone(e.target.value)}
-                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-orange-400"
+                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-orange-400 disabled:bg-slate-100 disabled:text-slate-400"
                 />
               </div>
 
@@ -622,20 +790,21 @@ export default function ShopSettingsView({
                 <label className="text-[10px] font-black text-slate-700 block">📍 ဆိုင်ခွဲလိပ်စာ (Branch Physical Address)</label>
                 <input
                   type="text"
+                  disabled={!isPremiumActive}
                   placeholder="ဥပမာ - အမှတ် (၈)၊ ကမ္ဘာအေးဘုရားလမ်း..."
                   value={newBranchAddress}
                   onChange={e => setNewBranchAddress(e.target.value)}
-                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-orange-400"
+                  className="w-full text-xs font-semibold p-2.5 border border-slate-300 rounded-xl bg-white focus:outline-none focus:border-orange-400 disabled:bg-slate-100 disabled:text-slate-400"
                 />
               </div>
 
               <div className="sm:col-span-2 flex justify-end pt-2">
                 <button
                   type="submit"
-                  disabled={branchSubmitting}
-                  className="bg-slate-800 text-white font-black text-xs px-5 py-2.5 rounded-xl transition cursor-pointer hover:bg-slate-900 active:scale-95 shadow-xs disabled:bg-slate-400"
+                  disabled={branchSubmitting || !isPremiumActive}
+                  className="bg-slate-800 text-white font-black text-xs px-5 py-2.5 rounded-xl transition cursor-pointer hover:bg-slate-900 active:scale-95 shadow-xs disabled:bg-slate-300 disabled:text-slate-500"
                 >
-                  {branchSubmitting ? 'ဆိုင်ခွဲတည်ဆောက်နေပါသည်...' : '🏪 ဆိုင်ခွဲ သစ်တိုးချဲ့ဖွင့်မည် (Create Branch)'}
+                  {branchSubmitting ? 'ဆိုင်ခွဲတည်ဆောက်နေပါသည်...' : '🏪 ဆိုင်ခွဲ သက်တမ်းမြှင့်ပြီး စတင်တည်ဆောက်မည်'}
                 </button>
               </div>
             </form>

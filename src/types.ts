@@ -48,4 +48,10 @@ export interface ShopSettings {
   slug: string;
   payment_accounts?: PaymentAccount[]; // Unlimited banking/mobile payment accounts
   allowed_payment_modes?: 'both' | 'cod' | 'prepay'; // Both modes, cash on delivery only, or online prepay only
+  is_premium?: boolean;
+  premium_until?: string; // ISO date string when premium expires
+  premium_requested?: boolean; // True if premium registration is requested
+  premium_request_payment_slip?: string; // Base64 proof of transfer receipt
+  premium_request_text?: string; // Memo / transaction detail
+  premium_request_date?: string; // Request date string
 }
