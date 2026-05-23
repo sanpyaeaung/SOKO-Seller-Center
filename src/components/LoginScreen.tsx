@@ -11,19 +11,24 @@ export default function LoginScreen({ onLoginError }: LoginScreenProps) {
 
   useEffect(() => {
     setLoadingRedirect(true);
-    getRedirectResult(auth)
-      .then((result) => {
-        if (result) {
-          console.log('Redirect sign-in success:', result.user);
-        }
-      })
-      .catch((err: any) => {
-        console.error('Redirect Auth Error:', err);
-        onLoginError(err.message || 'Redirect Sign-in failed');
-      })
-      .finally(() => {
-        setLoadingRedirect(false);
-      });
+    try {
+      getRedirectResult(auth)
+        .then((result) => {
+          if (result) {
+            console.log('Redirect sign-in success:', result.user);
+          }
+        })
+        .catch((err: any) => {
+          console.error('Redirect Auth Error:', err);
+          onLoginError(err.message || 'Redirect Sign-in failed');
+        })
+        .finally(() => {
+          setLoadingRedirect(false);
+        });
+    } catch (syncErr: any) {
+      console.warn('Google Redirect check blocked synchronously (expected in sandboxed environments):', syncErr);
+      setLoadingRedirect(false);
+    }
   }, [onLoginError]);
 
   const handleGoogleSignIn = async () => {

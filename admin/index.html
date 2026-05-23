@@ -83,21 +83,28 @@
        // Connect to SOKO custom Firestore database synchronously using loaded Compat SDK
        let db;
        try {
-         db = app.firestore(firebaseConfig.firestoreDatabaseId);
+         // Attempt to get the named database instance
+         db = firebase.firestore(app, firebaseConfig.firestoreDatabaseId);
+         console.log("🚀 SOKO Named Database Compat initialized!");
+       } catch (e) {
+         console.error('Firestore named database instance fetch fail, trying fallback:', e);
+         try {
+           db = app.firestore(firebaseConfig.firestoreDatabaseId);
+         } catch (e2) {
+           console.error('All named database init attempts failed, falling back to default app.firestore (Warning: might be empty):', e2);
+           db = app.firestore();
+         }
+       }
+
+       // Configure settings safely in a separate block so that any settings exception (e.g. settings already configured)
+       // does NOT cause a discard of the database instance.
+       try {
          db.settings({
            experimentalForceLongPolling: true
          });
-         console.log("🚀 SOKO Named Database Compat initialized synchronously perfectly!");
-       } catch (e) {
-         console.error('Firestore named database initialization error, falling back to default:', e);
-         db = app.firestore();
-         try {
-           db.settings({
-             experimentalForceLongPolling: true
-           });
-         } catch (setErr) {
-           console.warn('Fallback Firestore settings setup warning:', setErr);
-         }
+         console.log("🚀 Firestore long-polling settings applied.");
+       } catch (settingsError) {
+         console.warn('Firestore settings already initialized or locked:', settingsError);
        }
 
       // Sound notification generator
