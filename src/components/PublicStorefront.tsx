@@ -17,6 +17,7 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
   // Global Broadcast Pop-up states for public website visitors
   const [globalNoti, setGlobalNoti] = useState<{ title: string; body: string; type: string; active: boolean; updated_at?: string } | null>(null);
   const [dismissedNotiTime, setDismissedNotiTime] = useState<string>('');
+  const [isMarqueeVisible, setIsMarqueeVisible] = useState(false);
 
   // Cart and checkout states
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -288,6 +289,30 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
     return () => unsubBroadcast();
   }, []);
 
+  // Limit broadcast marquee visibility duration to 3 minutes (180,000 milliseconds)
+  useEffect(() => {
+    if (globalNoti && globalNoti.active && globalNoti.updated_at) {
+      const publishedTime = new Date(globalNoti.updated_at).getTime();
+      const checkAndSchedule = () => {
+        const now = Date.now();
+        const elapsed = now - publishedTime;
+        if (elapsed >= 0 && elapsed <= 180000) {
+          setIsMarqueeVisible(true);
+          const timeLeft = 180000 - elapsed;
+          const timer = setTimeout(() => {
+            setIsMarqueeVisible(false);
+          }, timeLeft);
+          return () => clearTimeout(timer);
+        } else {
+          setIsMarqueeVisible(false);
+        }
+      };
+      return checkAndSchedule();
+    } else {
+      setIsMarqueeVisible(false);
+    }
+  }, [globalNoti]);
+
   // Derived category lists
   const categories = useMemo(() => {
     const list = new Set<string>();
@@ -460,6 +485,18 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col font-sans relative">
       
+      {/* High-visibility persistent marquee banner from SOKO Admin Panel (scrolling Right-to-Left) */}
+      {globalNoti && globalNoti.active && isMarqueeVisible && (
+        <div className="bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 py-3 px-4 border-b-2 border-amber-500 font-black text-[12px] flex items-center shadow-sm overflow-hidden z-50 min-h-[46px] select-none">
+          <span className="bg-slate-950 text-yellow-400 text-[8.5px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider mr-3 flex-shrink-0 animate-pulse border border-slate-900 leading-normal">
+            📢 SYSTEM ALERTS
+          </span>
+          <marquee direction="left" scrollamount="4.5" className="flex-1 font-extrabold text-slate-950 text-[12.5px] leading-relaxed pb-0.5">
+            {globalNoti.title} — {globalNoti.body}
+          </marquee>
+        </div>
+      )}
+
       {/* Visual Header Identity */}
       <header className="bg-white border-b-2 border-[#FFD28E] sticky top-0 z-40 px-4 py-3 shadow-xs">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
@@ -989,63 +1026,6 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
         <p className="text-slate-350">👨‍💻 {shopSettings.name} — တိုက်ရိုက် မှာယူမှုစနစ်</p>
         <p className="text-[9px] text-slate-500"> Powered by SOKO Cloud Software Platform 🇲🇲 ပြည်တွင်းဖြစ်ကိုဦးစားပေးပါ</p>
       </footer>
-
-      {/* Real-time Global Pop-up Notification Broadcast Modal UI */}
-      {globalNoti && globalNoti.active && dismissedNotiTime !== globalNoti.updated_at && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] animate-fade-in text-left">
-          <div className={`bg-white border-2 max-w-lg w-full rounded-3xl p-6.5 space-y-5 shadow-2xl relative ${
-            globalNoti.type === 'danger' 
-              ? 'border-rose-300' 
-              : globalNoti.type === 'warning' 
-              ? 'border-amber-300' 
-              : globalNoti.type === 'success' 
-              ? 'border-emerald-300' 
-              : 'border-indigo-300'
-          }`}>
-            
-            <div className="flex items-start gap-3.5">
-              <span className="text-3xl mt-0.5">
-                {globalNoti.type === 'danger' ? '🚨' : globalNoti.type === 'warning' ? '⚠️' : globalNoti.type === 'success' ? '🎉' : '📢'}
-              </span>
-              <div className="space-y-1.5 flex-1">
-                <span className="text-[10px] bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
-                  SOKO System Notification
-                </span>
-                <h3 className="font-extrabold text-slate-905 text-sm leading-snug">
-                  {globalNoti.title}
-                </h3>
-                <p className="text-xs text-slate-705 leading-relaxed whitespace-pre-line font-bold">
-                  {globalNoti.body}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-3 border-t border-slate-100">
-              <button
-                onClick={() => {
-                  if (globalNoti.updated_at) {
-                    setDismissedNotiTime(globalNoti.updated_at);
-                  } else {
-                    setDismissedNotiTime('done');
-                  }
-                }}
-                className={`px-6 py-2.5 rounded-xl text-xs font-black cursor-pointer transition active:scale-[0.95] shadow-md ${
-                  globalNoti.type === 'danger'
-                    ? 'bg-rose-600 hover:bg-rose-750 text-white'
-                    : globalNoti.type === 'warning'
-                    ? 'bg-amber-500 hover:bg-amber-600 text-white'
-                    : globalNoti.type === 'success'
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                }`}
-              >
-                နားလည်ပါပြီ (OK)
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
 
       {/* 🔍 Product details modal overlay popup */}
       {detailProduct && (

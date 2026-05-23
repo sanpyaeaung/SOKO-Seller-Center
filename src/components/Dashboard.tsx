@@ -50,13 +50,21 @@ export default function Dashboard({
 
       {/* Quick Insights Grid */}
       <div id="analytics-grid" className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-5 rounded-2xl border-2 border-orange-105/70 shadow-sm flex flex-col justify-between">
+        <div 
+          onClick={() => onNavigate('reports')}
+          className="bg-white p-5 rounded-2xl border-2 border-orange-105/70 shadow-sm flex flex-col justify-between cursor-pointer hover:scale-[1.02] active:scale-95 hover:border-orange-400 transition-all duration-150"
+          title="အပတ်စဉ်/လစဉ် အရောင်းစာရင်းသို့ သွားမည်"
+        >
           <span className="text-xs font-bold text-orange-600 uppercase tracking-widest block mb-1">ယနေ့ရောင်းရငွေ</span>
           <span className="text-xl sm:text-2xl font-black text-orange-600 font-mono">{getTodayRevenue().toLocaleString()} Ks</span>
           <span className="text-[10px] text-slate-505 block mt-2">ယနေ့အော်ဒါအားလုံး၏ စုစုပေါင်း</span>
         </div>
         
-        <div className="bg-white p-5 rounded-2xl border-2 border-orange-105/70 shadow-sm flex flex-col justify-between">
+        <div 
+          onClick={() => onNavigate('orders')}
+          className="bg-white p-5 rounded-2xl border-2 border-orange-105/70 shadow-sm flex flex-col justify-between cursor-pointer hover:scale-[1.02] active:scale-95 hover:border-orange-400 transition-all duration-150"
+          title="အော်ဒါများစီမံခန့်ခွဲရာသို့ သွားမည်"
+        >
           <span className="text-xs font-bold text-orange-600 uppercase tracking-widest block mb-1">အော်ဒါအသစ်</span>
           <span className="text-xl sm:text-2xl font-black text-orange-600 font-mono">
             {pendingOrdersCount} ခု
@@ -64,13 +72,21 @@ export default function Dashboard({
           <span className="text-[10px] text-orange-500 block mt-2 animate-pulse font-bold">● လုပ်ဆောင်ရန်ကျန်ရှိ</span>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border-2 border-orange-105/70 shadow-sm flex flex-col justify-between">
+        <div 
+          onClick={() => onNavigate('inventory')}
+          className="bg-white p-5 rounded-2xl border-2 border-orange-105/70 shadow-sm flex flex-col justify-between cursor-pointer hover:scale-[1.02] active:scale-95 hover:border-orange-400 transition-all duration-150"
+          title="ကုန်ပစ္စည်းစီမံမှု စာမျက်နှာသို့ သွားမည်"
+        >
           <span className="text-xs font-bold text-orange-600 uppercase tracking-widest block mb-1">ကုန်ပစ္စည်း</span>
           <span className="text-xl sm:text-2xl font-black text-slate-800 font-mono">{products.length} မျိုး</span>
           <span className="text-[10px] text-slate-500 block mt-2 font-medium">ပစ္စည်းကတ်တလောက်စုစုပေါင်း</span>
         </div>
 
-        <div className="bg-white p-5 rounded-2xl border-2 border-orange-105/70 shadow-sm flex flex-col justify-between">
+        <div 
+          onClick={() => onNavigate('inventory')}
+          className="bg-white p-5 rounded-2xl border-2 border-orange-105/70 shadow-sm flex flex-col justify-between cursor-pointer hover:scale-[1.02] active:scale-95 hover:border-orange-400 transition-all duration-150"
+          title="ကုန်ပစ္စည်းစီမံမှု စာမျက်နှာသို့ သွားမည် (စတော့နည်းပစ္စည်းများ စစ်ဆေးခြင်း)"
+        >
           <span className="text-xs font-bold text-orange-600 uppercase tracking-widest block mb-1">စတော့နည်းပစ္စည်း</span>
           <span className={`text-xl sm:text-2xl font-black font-mono ${getLowStockProducts().length > 0 ? 'text-rose-600' : 'text-slate-700'}`}>
             {getLowStockProducts().length} မျိုး

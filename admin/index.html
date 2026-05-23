@@ -59,7 +59,7 @@
     <!-- Native Firebase v10 Modular SDK wrapper for custom/named database connectivity in the admin panel -->
     <script type="module">
       import { initializeApp, getApp, getApps } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-      import { initializeFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+      import { initializeFirestore, collection, doc, onSnapshot, setDoc, updateDoc, deleteDoc, query, setLogLevel } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
       const config = {
         projectId: "gen-lang-client-0725717335",
@@ -72,6 +72,7 @@
       };
 
       try {
+        setLogLevel('error');
         const app = getApps().length === 0 ? initializeApp(config) : getApp();
         const rawDb = initializeFirestore(app, {
           experimentalForceLongPolling: true,
@@ -358,8 +359,10 @@
         useEffect(() => {
           if (!hasSuperadminPrivileges || !firestoreInitialized) return;
 
+          const activeDb = window.db || db;
+
           setLoadingShops(true);
-          const unsubShops = db.collection('shop_settings').onSnapshot((snapshot) => {
+          const unsubShops = activeDb.collection('shop_settings').onSnapshot((snapshot) => {
             const list = [];
             snapshot.forEach((doc) => {
               list.push(doc.data());
@@ -373,7 +376,7 @@
           });
 
           setLoadingProducts(true);
-          const unsubProducts = db.collection('products').onSnapshot((snapshot) => {
+          const unsubProducts = activeDb.collection('products').onSnapshot((snapshot) => {
             const list = [];
             snapshot.forEach((doc) => {
               list.push(doc.data());
@@ -388,7 +391,7 @@
 
           setLoadingOrders(true);
           let firstInitDone = false;
-          const unsubOrders = db.collection('orders').onSnapshot((snapshot) => {
+          const unsubOrders = activeDb.collection('orders').onSnapshot((snapshot) => {
             const list = [];
             let playDing = false;
             let targetName = '';
@@ -423,7 +426,7 @@
             setLoadingOrders(false);
           });
 
-          const unsubBroadcast = db.collection('broadcasts').doc('global').onSnapshot((doc) => {
+          const unsubBroadcast = activeDb.collection('broadcasts').doc('global').onSnapshot((doc) => {
             if (doc.exists) {
               const data = doc.data();
               setLiveBroadcast(data);
@@ -439,7 +442,7 @@
           });
 
           setLoadingSuggestions(true);
-          const unsubSuggestions = db.collection('suggestions').onSnapshot((snapshot) => {
+          const unsubSuggestions = activeDb.collection('suggestions').onSnapshot((snapshot) => {
             const list = [];
             snapshot.forEach((doc) => {
               list.push({ id: doc.id, ...doc.data() });
@@ -797,70 +800,60 @@
             </header>
 
             {/* Sticky Navigation and Testing controls */}
-            <div className="bg-white border-b border-slate-150 py-2.5 px-4 md:px-6 shadow-3xs sticky top-0 z-40">
-              <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="bg-white border-b border-slate-150 py-1.5 px-3 md:px-5 shadow-3xs sticky top-0 z-40">
+              <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-2.5">
                 
                 {/* Tabs selection buttons */}
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1">
                   <button
                     onClick={() => setActiveTab('analytics')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all ${
                       activeTab === 'analytics' 
                         ? 'bg-amber-500 text-slate-950 shadow-3xs' 
-                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-600 hover:text-orange-950 border border-slate-200/60'
+                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-650 hover:text-orange-950 border border-slate-200/60'
                     }`}
                   >
-                    📊 ခြုံငုံသုံးသပ်ချက် (Overview)
+                    📊 ခြုံငုံ (Overview)
                   </button>
                   <button
                     onClick={() => setActiveTab('shops')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all ${
                       activeTab === 'shops' 
                         ? 'bg-amber-500 text-slate-950 shadow-3xs' 
-                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-600 hover:text-orange-950 border border-slate-200/60'
+                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-650 hover:text-orange-950 border border-slate-200/60'
                     }`}
                   >
-                    🏪 စတိုးဆိုင်များ ({shops.length})
+                    🏪 ဆိုင်များ ({shops.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('products')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all ${
                       activeTab === 'products' 
                         ? 'bg-amber-500 text-slate-950 shadow-3xs' 
-                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-600 hover:text-orange-950 border border-slate-200/60'
+                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-650 hover:text-orange-950 border border-slate-200/60'
                     }`}
                   >
-                    📦 ကုန်ပစ္စည်းစာရင်း ({products.length})
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('orders')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
-                      activeTab === 'orders' 
-                        ? 'bg-amber-500 text-slate-950 shadow-3xs' 
-                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-600 hover:text-orange-950 border border-slate-200/60'
-                    }`}
-                  >
-                    🛒 မှာယူမှုအော်ဒါများ ({orders.length})
+                    📦 ပစ္စည်းစာရင်း ({products.length})
                   </button>
                   <button
                     onClick={() => setActiveTab('broadcast')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all ${
                       activeTab === 'broadcast' 
                         ? 'bg-amber-600 text-white shadow-3xs' 
-                        : 'bg-orange-50 hover:bg-orange-100/50 text-amber-900 border border-orange-150'
+                        : 'bg-orange-50 hover:bg-orange-100/50 text-amber-950 border border-orange-150'
                     }`}
                   >
-                    📢 Pop-up Noti လွှင့်ရန်
+                    📢 Noti လွှင့်ရန်
                   </button>
                   <button
                     onClick={() => setActiveTab('suggestions')}
-                    className={`px-3 py-1.5 rounded-lg text-[10.5px] font-bold transition-all ${
+                    className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all ${
                       activeTab === 'suggestions' 
                         ? 'bg-slate-900 text-white shadow-3xs' 
-                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-600 hover:text-orange-950 border border-slate-200/60'
+                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-650 hover:text-orange-950 border border-slate-200/60'
                     }`}
                   >
-                    💬 အကြံပြုချက်များ ({suggestions.length})
+                    💬 အကြံပြုချက် ({suggestions.length})
                   </button>
                 </div>
 
@@ -912,7 +905,11 @@
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4.5">
                     
                     {/* Stat 1: စျေးဆိုင်အရေအတွက် */}
-                    <div className="bg-white border-2 border-orange-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                    <div 
+                      onClick={() => setActiveTab('shops')}
+                      className="bg-white border-2 border-orange-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs cursor-pointer hover:border-orange-400 hover:scale-[1.01] transition-transform duration-200"
+                      title="စတိုးဆိုင်များ စာမျက်နှာသို့ သွားမည်"
+                    >
                       <div className="flex justify-between items-start">
                         <span className="text-[10px] text-slate-450 font-black uppercase tracking-wider">စတိုးဆိုင် စုစုပေါင်း</span>
                         <div className="w-8 h-8 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center text-sm">🏪</div>
@@ -924,7 +921,11 @@
                     </div>
 
                     {/* Stat 2: Premium ဝယ်ယူတဲ့ဆိုင်အရေအတွက် */}
-                    <div className="bg-white border-2 border-teal-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                    <div 
+                      onClick={() => setActiveTab('shops')}
+                      className="bg-white border-2 border-teal-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs cursor-pointer hover:border-teal-400 hover:scale-[1.01] transition-transform duration-200"
+                      title="လက်ရှိ Premium ဆိုင်များ စစ်ဆေးရန်"
+                    >
                       <div className="flex justify-between items-start">
                         <span className="text-[10px] text-teal-650 font-black uppercase tracking-wider">Premium VIP ဆိုင်</span>
                         <div className="w-8 h-8 bg-teal-50 text-teal-600 rounded-xl flex items-center justify-center text-xs">💎</div>
@@ -938,7 +939,11 @@
                     </div>
 
                     {/* Stat 3: Premium မှရငွေ */}
-                    <div className="bg-white border-2 border-emerald-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                    <div 
+                      onClick={() => setActiveTab('shops')}
+                      className="bg-white border-2 border-emerald-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs cursor-pointer hover:border-emerald-400 hover:scale-[1.01] transition-transform duration-200"
+                      title="Premium accounts စာရင်းသို့ သွားမည်"
+                    >
                       <div className="flex justify-between items-start">
                         <span className="text-[10px] text-emerald-650 font-black uppercase tracking-wider">Premium မှရငွေ</span>
                         <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xs font-black">Ks</div>
@@ -952,7 +957,11 @@
                     </div>
 
                     {/* Stat 4: လက်ရှိ အသုံးပြုနေတဲ့ အရေအတွက် */}
-                    <div className="bg-white border-2 border-sky-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                    <div 
+                      onClick={() => setActiveTab('shops')}
+                      className="bg-white border-2 border-sky-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs cursor-pointer hover:border-sky-400 hover:scale-[1.01] transition-transform duration-200"
+                      title="အသုံးပြုနေသော ဆိုင်ခွဲများစစ်ဆေးရန်"
+                    >
                       <div className="flex justify-between items-start">
                         <span className="text-[10px] text-sky-650 font-black uppercase tracking-wider">လက်ရှိအသုံးပြုနေသောဆိုင်</span>
                         <div className="w-8 h-8 bg-sky-50 text-sky-600 rounded-xl flex items-center justify-center text-xs">⚡</div>
@@ -966,7 +975,11 @@
                     </div>
 
                     {/* Stat 5: စျေးဆိုင်အသစ် */}
-                    <div className="bg-white border-2 border-orange-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                    <div 
+                      onClick={() => setActiveTab('shops')}
+                      className="bg-white border-2 border-orange-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs cursor-pointer hover:border-orange-400 hover:scale-[1.01] transition-transform duration-200"
+                      title="အသစ်ဖွင့်ထားသော ဆိုင်ခွဲများစစ်ဆေးရန်"
+                    >
                       <div className="flex justify-between items-start">
                         <span className="text-[10px] text-orange-650 font-black uppercase tracking-wider">စျေးဆိုင်အသစ်များ</span>
                         <div className="w-8 h-8 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center text-xs">🌱</div>
@@ -980,7 +993,11 @@
                     </div>
 
                     {/* Stat 6: စျေးဝယ်သူအရေအတွက် */}
-                    <div className="bg-white border-2 border-indigo-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                    <div 
+                      onClick={() => setActiveTab('shops')}
+                      className="bg-white border-2 border-indigo-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs cursor-pointer hover:border-indigo-400 hover:scale-[1.01] transition-transform duration-200"
+                      title="ဝယ်သူဖုန်းနံပါတ် စုစည်းမှုစစ်ဆေးရန်"
+                    >
                       <div className="flex justify-between items-start">
                         <span className="text-[10px] text-indigo-650 font-black uppercase tracking-wider">ဝယ်ယူသူအရေအတွက်</span>
                         <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xs">👥</div>
@@ -994,7 +1011,11 @@
                     </div>
 
                     {/* Stat 7: orders total counts */}
-                    <div className="bg-white border-2 border-yellow-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs hover:scale-[1.01] transition-transform duration-200">
+                    <div 
+                      onClick={() => setActiveTab('shops')}
+                      className="bg-white border-2 border-yellow-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs cursor-pointer hover:border-yellow-400 hover:scale-[1.01] transition-transform duration-200"
+                      title="မှာယူမှုအော်ဒါများစစ်ဆေးရန် တစ်ဆိုင်ချင်းစီသို့ သွားမည်"
+                    >
                       <div className="flex justify-between items-start">
                         <span className="text-[10px] text-yellow-650 font-black uppercase tracking-wider">မှာယူမှု စုစုပေါင်း</span>
                         <div className="w-8 h-8 bg-yellow-50 text-yellow-600 rounded-xl flex items-center justify-center text-xs">🛒</div>
@@ -1006,7 +1027,11 @@
                     </div>
 
                     {/* Revenue Consolidated highlight block */}
-                    <div className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-2 border-amber-600 p-4.5 rounded-2xl flex flex-col justify-between shadow-md hover:scale-[1.01] transition-transform duration-200">
+                    <div 
+                      onClick={() => setActiveTab('shops')}
+                      className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-2 border-amber-600 p-4.5 rounded-2xl flex flex-col justify-between shadow-md cursor-pointer hover:border-yellow-200 hover:scale-[1.01] transition-transform duration-200"
+                      title="ဆိုင်ခွဲ စုစုပေါင်းရောင်းအား စာမျက်နှာသို့ သွားမည်"
+                    >
                       <div className="flex justify-between items-start">
                         <span className="text-[9px] text-amber-100 font-black uppercase tracking-wider">ဆိုင်ပေါင်းစုံ ပေါင်းစည်းရောင်းအား</span>
                         <div className="w-8 h-8 bg-white/10 text-white rounded-xl flex items-center justify-center text-xs border border-white/10">Ks</div>
@@ -1984,7 +2009,7 @@
 
 
               {/* 🛒 TAB 4: LIVE CLIENT ORDERS FEED */}
-              {activeTab === 'orders' && (
+              {false && (
                 <div className="space-y-5 animate-fade-in">
                   
                   {/* Status sorting Header */}
@@ -2479,10 +2504,18 @@
         );
       }
 
-      // Append App structure inside root container
-      const container = document.getElementById('root');
-      const root = ReactDOM.createRoot(container);
-      root.render(<App />);
+      // Append App structure inside root container with a polling fallback wait to guarantee window.db is populated
+      function mountApp() {
+        if (window.db) {
+          db = window.db;
+          const container = document.getElementById('root');
+          const root = ReactDOM.createRoot(container);
+          root.render(<App />);
+        } else {
+          setTimeout(mountApp, 20);
+        }
+      }
+      mountApp();
     </script>
   </body>
 </html>
