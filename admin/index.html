@@ -826,16 +826,6 @@
                     🏪 ဆိုင်များ ({shops.length})
                   </button>
                   <button
-                    onClick={() => setActiveTab('products')}
-                    className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all ${
-                      activeTab === 'products' 
-                        ? 'bg-amber-500 text-slate-950 shadow-3xs' 
-                        : 'bg-slate-50 hover:bg-orange-50/55 text-slate-650 hover:text-orange-950 border border-slate-200/60'
-                    }`}
-                  >
-                    📦 ပစ္စည်းစာရင်း ({products.length})
-                  </button>
-                  <button
                     onClick={() => setActiveTab('broadcast')}
                     className={`px-2.5 py-1 rounded-md text-[9.5px] font-extrabold transition-all ${
                       activeTab === 'broadcast' 
@@ -992,55 +982,7 @@
                       </div>
                     </div>
 
-                    {/* Stat 6: စျေးဝယ်သူအရေအတွက် */}
-                    <div 
-                      onClick={() => setActiveTab('shops')}
-                      className="bg-white border-2 border-indigo-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs cursor-pointer hover:border-indigo-400 hover:scale-[1.01] transition-transform duration-200"
-                      title="ဝယ်သူဖုန်းနံပါတ် စုစည်းမှုစစ်ဆေးရန်"
-                    >
-                      <div className="flex justify-between items-start">
-                        <span className="text-[10px] text-indigo-650 font-black uppercase tracking-wider">ဝယ်ယူသူအရေအတွက်</span>
-                        <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xs">👥</div>
-                      </div>
-                      <div className="mt-4 space-y-1">
-                        <div className="text-2xl font-black text-slate-950 font-mono leading-none">
-                          {new Set(orders.map(o => o.customer_phone).filter(Boolean)).size} ဦး
-                        </div>
-                        <span className="text-[9px] text-indigo-500 font-bold block">● ဖုန်းနံပါတ် သီးသန့်ဝယ်ယူသူ</span>
-                      </div>
-                    </div>
 
-                    {/* Stat 7: orders total counts */}
-                    <div 
-                      onClick={() => setActiveTab('shops')}
-                      className="bg-white border-2 border-yellow-100 p-4.5 rounded-2xl flex flex-col justify-between shadow-3xs cursor-pointer hover:border-yellow-400 hover:scale-[1.01] transition-transform duration-200"
-                      title="မှာယူမှုအော်ဒါများစစ်ဆေးရန် တစ်ဆိုင်ချင်းစီသို့ သွားမည်"
-                    >
-                      <div className="flex justify-between items-start">
-                        <span className="text-[10px] text-yellow-650 font-black uppercase tracking-wider">မှာယူမှု စုစုပေါင်း</span>
-                        <div className="w-8 h-8 bg-yellow-50 text-yellow-600 rounded-xl flex items-center justify-center text-xs">🛒</div>
-                      </div>
-                      <div className="mt-4 space-y-1">
-                        <div className="text-2xl font-black text-slate-950 font-mono leading-none">{orders.length} ဖြတ်ပိုင်း</div>
-                        <span className="text-[9px] text-slate-400 font-bold block">မှာယူမှုအသေးစိတ်မှတ်တမ်း</span>
-                      </div>
-                    </div>
-
-                    {/* Revenue Consolidated highlight block */}
-                    <div 
-                      onClick={() => setActiveTab('shops')}
-                      className="bg-gradient-to-br from-amber-500 to-amber-600 text-white border-2 border-amber-600 p-4.5 rounded-2xl flex flex-col justify-between shadow-md cursor-pointer hover:border-yellow-200 hover:scale-[1.01] transition-transform duration-200"
-                      title="ဆိုင်ခွဲ စုစုပေါင်းရောင်းအား စာမျက်နှာသို့ သွားမည်"
-                    >
-                      <div className="flex justify-between items-start">
-                        <span className="text-[9px] text-amber-100 font-black uppercase tracking-wider">ဆိုင်ပေါင်းစုံ ပေါင်းစည်းရောင်းအား</span>
-                        <div className="w-8 h-8 bg-white/10 text-white rounded-xl flex items-center justify-center text-xs border border-white/10">Ks</div>
-                      </div>
-                      <div className="mt-4 space-y-1">
-                        <div className="text-xl font-bold font-mono truncate">{cumulativeSalesSum.toLocaleString()} Ks</div>
-                        <span className="text-[9px] text-amber-150 font-bold block">အောင်မြင်ပြီးသော အရောင်းရငွေ</span>
-                      </div>
-                    </div>
 
                   </div>
 
@@ -1923,7 +1865,7 @@
 
 
               {/* 📦 TAB 3: PRODUCTS WAREHOUSE */}
-              {activeTab === 'products' && (
+              {false && (
                 <div className="space-y-5 animate-fade-in">
                   
                   {/* Search query fields */}

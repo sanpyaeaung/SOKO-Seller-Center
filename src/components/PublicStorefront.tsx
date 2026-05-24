@@ -544,16 +544,16 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
         {checkoutStep === 'browse' && (
           <div className="space-y-6">
             {/* Filter and Search Ribbon */}
-            <div className="flex flex-col sm:flex-row justify-between gap-3.5 bg-white p-3.5 rounded-2xl border border-slate-205 shadow-3xs">
+            <div className="flex flex-col gap-3.5 bg-white p-3.5 rounded-2xl border border-slate-205 shadow-3xs w-full min-w-0">
               {/* Search Bar with button */}
-              <div className="flex gap-2 flex-1 items-center">
-                <div className="relative flex-1">
+              <div className="flex gap-2 w-full items-center min-w-0">
+                <div className="relative flex-1 min-w-0">
                   <input 
                     type="text"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     placeholder="ပစ္စည်းအမည်ဖြင့် ရှာဖွေပါ..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 outline-hidden font-bold"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-xs text-slate-800 outline-hidden font-bold min-w-0"
                   />
                   <span className="absolute left-3 top-2 text-slate-400 font-semibold text-xs select-none">🔍</span>
                 </div>
@@ -567,7 +567,7 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs px-2.5 py-2 rounded-xl transition cursor-pointer flex-shrink-0"
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-650 font-bold text-xs px-2.5 py-2 rounded-xl transition cursor-pointer flex-shrink-0"
                   >
                     ✕
                   </button>
@@ -575,7 +575,7 @@ export default function PublicStorefront({ shopSlug }: PublicStorefrontProps) {
               </div>
 
               {/* Categories badge scrollable tabs */}
-              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5 sm:pb-0">
+              <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5 sm:pb-0 w-full min-w-0">
                 {categories.map(cat => (
                   <button
                     key={cat}
